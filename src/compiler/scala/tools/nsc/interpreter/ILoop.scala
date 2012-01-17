@@ -11,6 +11,7 @@ import java.io.{ BufferedReader, FileReader }
 import java.util.concurrent.locks.ReentrantLock
 import scala.sys.process.Process
 import session._
+import scala.util.Properties.{ jdkHome, javaVersion }
 import scala.tools.util.{ Signallable, Javap }
 import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
@@ -52,6 +53,7 @@ class ILoop(in0: Option[BufferedReader], protected val out: JPrintWriter)
 
   def isAsync = !settings.Yreplsync.value
   lazy val power = new Power(intp, new StdReplVals(this))
+  lazy val NoType = intp.global.NoType
 
   // TODO
   // object opt extends AestheticSettings
@@ -377,14 +379,29 @@ class ILoop(in0: Option[BufferedReader], protected val out: JPrintWriter)
     }
   }
 
+  private def findToolsJar() = {
+    val jdkPath = Directory(jdkHome)
+    val jar     = jdkPath / "lib" / "tools.jar" toFile;
+    
+    if (jar isFile)
+      Some(jar)
+    else if (jdkPath.isDirectory)
+      jdkPath.deepFiles find (_.name == "tools.jar")
+    else None
+  }
   private def addToolsJarToLoader() = {
-    val javaHome = Directory(sys.env("JAVA_HOME"))
-    val tools    = javaHome / "lib" / "tools.jar"
-    if (tools.isFile) {
-      echo("Found tools.jar, adding for use by javap.")
-      ScalaClassLoader.fromURLs(Seq(tools.toURL), intp.classLoader)
+    val cl = findToolsJar match {
+      case Some(tools) => ScalaClassLoader.fromURLs(Seq(tools.toURL), intp.classLoader)
+      case _           => intp.classLoader
     }
-    else intp.classLoader
+    if (Javap.isAvailable(cl)) {
+      repldbg(":javap available.")
+      cl
+    }
+    else {
+      repldbg(":javap unavailable: no tools.jar at " + jdkHome)
+      intp.classLoader
+    }
   }
 
   protected def newJavap() = new JavapClass(addToolsJarToLoader(), new IMain.ReplStrippingWriter(intp)) {
@@ -420,9 +437,10 @@ class ILoop(in0: Option[BufferedReader], protected val out: JPrintWriter)
   // Still todo: modules.
   private def typeCommand(line: String): Result = {
     if (line.trim == "") ":type <expression>"
-    else intp.typeOfExpression(line, false) match {
-      case Some(tp) => intp.afterTyper(tp.toString)
-      case _        => "" // the error message was already printed
+    else {
+      val tp = intp.typeOfExpression(line, false)
+      if (tp == NoType) "" // the error message was already printed
+      else intp.afterTyper(tp.toString)
     }
   }
   private def warningsCommand(): Result = {
@@ -431,14 +449,16 @@ class ILoop(in0: Option[BufferedReader], protected val out: JPrintWriter)
 
   private def javapCommand(line: String): Result = {
     if (javap == null)
-      return ":javap unavailable on this platform."
-    if (line == "")
-      return ":javap [-lcsvp] [path1 path2 ...]"
-
-    javap(words(line)) foreach { res =>
-      if (res.isError) return "Failed: " + res.value
-      else res.show()
-    }
+      ":javap unavailable, no tools.jar at %s.  Set JDK_HOME.".format(jdkHome)
+    else if (javaVersion startsWith "1.7")
+      ":javap not yet working with java 1.7"
+    else if (line == "")
+      ":javap [-lcsvp] [path1 path2 ...]"
+    else
+      javap(words(line)) foreach { res =>
+        if (res.isError) return "Failed: " + res.value
+        else res.show()
+      }
   }
   private def keybindingsCommand(): Result = {
     if (in.keyBindings.isEmpty) "Key bindings unavailable."
@@ -467,13 +487,14 @@ class ILoop(in0: Option[BufferedReader], protected val out: JPrintWriter)
         }
       case wrapper :: Nil =>
         intp.typeOfExpression(wrapper) match {
-          case Some(PolyType(List(targ), MethodType(List(arg), restpe))) =>
+          case PolyType(List(targ), MethodType(List(arg), restpe)) =>
             intp setExecutionWrapper intp.pathToTerm(wrapper)
             "Set wrapper to '" + wrapper + "'"
-          case Some(x) =>
-            failMsg + "\nFound: " + x
-          case _ =>
-            failMsg + "\nFound: <unknown>"
+          case tp =>
+            failMsg + (
+              if (tp == g.NoType) "\nFound: <unknown>"
+              else "\nFound: <unknown>"
+            )
         }
       case _ => failMsg
     }
