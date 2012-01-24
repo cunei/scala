@@ -250,7 +250,7 @@ INITIALISATION
     <property file="${basedir}/build.number"/>
     <property
       name="version.number"
-      value="${version.major}.${version.minor}.${version.patch}-virtualized.${git.describe}"/>
+      value="${version.major}.${version.minor}.${version.patch}-${version.suffix}.${git.describe}"/>
 
     <!-- And print-out what we are building -->
     <echo message="       build time: ${time.human}" />
