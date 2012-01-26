@@ -178,6 +178,7 @@ trait ScalaSettings extends AbsScalaSettings
   val noSelfCheck   = BooleanSetting    ("-Yno-self-type-checks", "Suppress check for self-type conformance among inherited members.")
   val YvirtPatmat   = BooleanSetting    ("-Yvirtpatmat", "Translate pattern matches into flatMap/orElse calls.")
   val Yvirtualize   = BooleanSetting    ("-Yvirtualize", "Virtualize control-structures.")
+  Yvirtualize.value = true
   val YvirtClasses  = false // too embryonic to even expose as a -Y //BooleanSetting    ("-Yvirtual-classes", "Support virtual classes")
 
   val exposeEmptyPackage = BooleanSetting("-Yexpose-empty-package", "Internal only: expose the empty package.").internalOnly()
