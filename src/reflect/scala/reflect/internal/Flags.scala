@@ -63,7 +63,7 @@ import scala.collection.{ mutable, immutable }
 // 45:  SYNCHRONIZED/M
 // 46:        ARTIFACT
 // 47: DEFAULTMETHOD/M
-// 48:
+// 48:        INFERRED
 // 49:
 // 50:
 // 51:    lateDEFERRED
@@ -181,6 +181,12 @@ class Flags extends ModifierFlags {
                                           // A Java method's type is `cooked` by transforming raw types to existentials
 
   final val SYNCHRONIZED  = 1L << 45      // symbol is a method which should be marked ACC_SYNCHRONIZED
+
+
+  /** A transient flag to mark a val or def haswith an inferred result type
+   * Guaranteed to be reset after each phase. (Reset by Typer.)
+   */
+  final val INFERRED      = 1L << 48
 
   // ------- shift definitions -------------------------------------------------------
 
@@ -441,7 +447,7 @@ class Flags extends ModifierFlags {
     case        SYNCHRONIZED => "<synchronized>"                      // (1L << 45)
     case            ARTIFACT => "<artifact>"                          // (1L << 46)
     case       DEFAULTMETHOD => "<defaultmethod>"                     // (1L << 47)      
-    case    0x1000000000000L => ""                                    // (1L << 48)
+    case    0x1000000000000L => "<inferred>"                          // (1L << 48)
     case    0x2000000000000L => ""                                    // (1L << 49)
     case    0x4000000000000L => ""                                    // (1L << 50)
     case      `lateDEFERRED` => "<latedeferred>"                      // (1L << 51)

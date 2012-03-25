@@ -363,7 +363,7 @@ trait MethodSynthesis {
      */
     case class ImplicitClassWrapper(tree: ClassDef) extends DerivedFromClassDef {
       def completer(sym: Symbol): Type = ??? // not needed
-      def createAndEnterSymbol(): Symbol = enterSyntheticSym(derivedTree)
+      def createAndEnterSymbol(): Symbol = enterLateDef(derivedTree, tree.symbol)
       def derivedSym: Symbol = {
         // Only methods will do! Don't want to pick up any stray
         // companion objects of the same name.
@@ -530,7 +530,7 @@ trait MethodSynthesis {
           )
         }
       }
-      override def createAndEnterSymbol(): Symbol = enterSyntheticSym(derivedTree)
+      override def createAndEnterSymbol(): Symbol = enterLateDef(derivedTree)
     }
     case class BooleanBeanGetter(tree: ValDef) extends BeanAccessor("is") with AnyBeanGetter { }
     case class BeanGetter(tree: ValDef) extends BeanAccessor("get") with AnyBeanGetter { }

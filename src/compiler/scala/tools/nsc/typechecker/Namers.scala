@@ -228,6 +228,7 @@ trait Namers extends MethodSynthesis {
           scope unlink prev.sym // let them co-exist...
           // FIXME: The comment "let them co-exist" is confusing given that the
           // line it comments unlinks one of them.  What does it intend?
+          // [Martin] Unlinking does not mean that the symbol goes away.
         }
       }
       scope enter sym
@@ -432,7 +433,7 @@ trait Namers extends MethodSynthesis {
         updatePosFlags(m, tree.pos, moduleFlags)
         setPrivateWithin(tree, m)
         m.moduleClass andAlso (setPrivateWithin(tree, _))
-        context.unit.synthetics -= m
+        context.unit.lateDefs.remove(m)
         tree.symbol = m
       }
       else {
@@ -487,7 +488,7 @@ trait Namers extends MethodSynthesis {
       // The object Foo is still in scope, but because it is not compiled in current run
       // it should be ditched and a new one created.
       if (m != NoSymbol && currentRun.compiles(m)) m
-      else enterSyntheticSym(atPos(cdef.pos.focus)(creator(cdef)))
+      else enterLateDef(atPos(cdef.pos.focus)(creator(cdef)), cdef.symbol)
     }
 
     private def checkSelectors(tree: Import): Unit = {
@@ -694,9 +695,10 @@ trait Namers extends MethodSynthesis {
     def enterExistingSym(sym: Symbol): Context = this.context
     def enterIfNotThere(sym: Symbol) { }
 
-    def enterSyntheticSym(tree: Tree): Symbol = {
+    def enterLateDef(tree: Tree, original: Symbol = NoSymbol): Symbol = {
       enterSym(tree)
-      context.unit.synthetics(tree.symbol) = tree
+      context.unit.lateDefs.enter(tree, original)
+      log("enter late "+tree.symbol+" from "+original)
       tree.symbol
     }
 
@@ -822,17 +824,32 @@ trait Namers extends MethodSynthesis {
         else tpe.deconst
       )
     }
-    /** Computes the type of the body in a ValDef or DefDef, and
-     *  assigns the type to the tpt's node.  Returns the type.
-     */
-    private def assignTypeToTree(tree: ValOrDefDef, defnTyper: Typer, pt: Type): Type = {
-      val rhsTpe =
-        if (tree.symbol.isTermMacro) defnTyper.computeMacroDefType(tree, pt)
-        else defnTyper.computeType(tree.rhs, pt)
 
-      val defnTpe = widenIfNecessary(tree.symbol, rhsTpe, pt)
-      tree.tpt defineType defnTpe setPos tree.pos.focus
-      tree.tpt.tpe
+    /** Computes the type of the body in a ValDef or DefDef, and
+     *  assigns the type to the tpt's node. lateDef.enters the definition with the transformed
+     *  rhs for later integration during type checking.
+     *  Returns the type.
+     */
+    private def assignTypeToTree(tree: ValOrDefDef, defnTyper: Typer, pt: Type)(copier: (tree.type, Tree) => ValOrDefDef): Type = {
+      def finish(tree: ValOrDefDef, rhsTpe: Type): Type = {
+        val defnTpe = widenIfNecessary(tree.symbol, rhsTpe, pt)
+        (tree.tpt defineType defnTpe) setPos tree.pos.focus
+        tree.tpt.tpe
+      }
+      // compute result type from rhs
+      // TODO: if (tree.symbol.isTermMacro) defnTyper.computeMacroDefTypeFromMacroImpl(tree, pt)
+      val (rhs1, rhsType) = defnTyper.packedTyped(tree.rhs, pt)
+
+      val sym = if (owner.isMethod) owner else tree.symbol
+      val defnType = widenIfNecessary(sym, rhsType, pt)
+      if (settings.Yxnamer.value) {
+        val tree1 = copier(tree, rhs1)
+        context.unit.lateDefs.enter(tree1)
+        tree.symbol setFlag INFERRED
+        //println("infer: "+tree1)
+        finish(tree1, defnType)
+      } else
+        finish(tree, defnType)
     }
 
     // owner is the class with the self type
@@ -1134,13 +1151,14 @@ trait Namers extends MethodSynthesis {
       // (either "macro ???" as they used to or just "???" to maximally simplify their compilation)
       if (fastTrack contains meth) meth setFlag MACRO
 
+      // TODO
       // macro defs need to be typechecked in advance
       // because @macroImpl annotation only gets assigned during typechecking
       // otherwise macro defs wouldn't be able to robustly coexist with their clients
       // because a client could be typechecked before a macro def that it uses
-      if (meth.isMacro) {
-        typer.computeMacroDefType(ddef, resTpFromOverride)
-      }
+      // if (meth.isMacro) {
+      //   typer.computeMacroDefType(ddef, resTpFromOverride)
+      // }
 
       val res = thisMethodType({
         val rt = (
@@ -1151,7 +1169,9 @@ trait Namers extends MethodSynthesis {
             //   trait T { def f: Object }; class C <: T { def f = "" }
             // using resTpFromOverride as expected type allows for the following (C.f has type A):
             //   trait T { def f: A }; class C <: T { implicit def b2a(t: B): A = ???; def f = new B }
-            assignTypeToTree(ddef, typer, resTpFromOverride)
+            assignTypeToTree(ddef, typer, resTpFromOverride) {
+              treeCopy.DefDef(_, ddef.mods, ddef.name, ddef.tparams, ddef.vparamss, ddef.tpt, _)
+            }
           })
         // #2382: return type of default getters are always @uncheckedVariance
         if (meth.hasDefault)
@@ -1272,7 +1292,7 @@ trait Namers extends MethodSynthesis {
             }
             if (!isConstr)
               methOwner.resetFlag(INTERFACE) // there's a concrete member now
-            val default = parentNamer.enterSyntheticSym(defaultTree)
+            val default = parentNamer.enterLateDef(defaultTree, meth)
             if (default.owner.isTerm)
               saveDefaultGetter(meth, default)
           }
@@ -1296,7 +1316,7 @@ trait Namers extends MethodSynthesis {
           MissingParameterOrValTypeError(tpt)
           ErrorType
         }
-        else assignTypeToTree(vdef, typer, WildcardType)
+        else assignTypeToTree(vdef, typer, WildcardType) { treeCopy.ValDef(_, vdef.mods, vdef.name, vdef.tpt, _) }
       } else {
         typer.typedType(tpt).tpe
       }
@@ -1354,14 +1374,14 @@ trait Namers extends MethodSynthesis {
 
         val newImport = treeCopy.Import(imp, expr1, selectors).asInstanceOf[Import]
         checkSelectors(newImport)
-        transformed(imp) = newImport
+        if (settings.Yxnamer.value) context.unit.lateDefs.enter(newImport)
+        else transformed(imp) = newImport
         // copy symbol and type attributes back into old expression
         // so that the structure builder will find it.
         expr setSymbol expr1.symbol setType expr1.tpe
         ImportType(expr1)
       }
     }
-
 
     /** Given a case class
      *   case class C[Ts] (ps: Us)
@@ -1377,15 +1397,15 @@ trait Namers extends MethodSynthesis {
      */
     def addApplyUnapply(cdef: ClassDef, namer: Namer) {
       if (!cdef.symbol.hasAbstractFlag)
-        namer.enterSyntheticSym(caseModuleApplyMeth(cdef))
+        namer.enterLateDef(caseModuleApplyMeth(cdef))
 
       val primaryConstructorArity = treeInfo.firstConstructorArgs(cdef.impl.body).size
       if (primaryConstructorArity <= MaxTupleArity)
-        namer.enterSyntheticSym(caseModuleUnapplyMeth(cdef))
+        namer.enterLateDef(caseModuleUnapplyMeth(cdef))
     }
 
     def addCopyMethod(cdef: ClassDef, namer: Namer) {
-      caseClassCopyMeth(cdef) foreach namer.enterSyntheticSym
+      caseClassCopyMeth(cdef) foreach (namer.enterLateDef(_))
     }
 
     /**

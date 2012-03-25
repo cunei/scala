@@ -41,6 +41,7 @@ class Global(var currentSettings: Settings, var reporter: Reporter)
     with Trees
     with Printers
     with DocComments
+    with LateDefinitions
     with Positions { self =>
 
   // the mirror --------------------------------------------------

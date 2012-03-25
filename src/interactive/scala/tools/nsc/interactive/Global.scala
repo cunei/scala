@@ -605,7 +605,7 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "") 
   private def reset(unit: RichCompilationUnit): Unit = {
     unit.depends.clear()
     unit.defined.clear()
-    unit.synthetics.clear()
+    unit.lateDefs.clear()
     unit.toCheck.clear()
     unit.checkedFeatures = Set()
     unit.targetPos = NoPosition
