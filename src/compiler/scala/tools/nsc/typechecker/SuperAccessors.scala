@@ -139,7 +139,8 @@ abstract class SuperAccessors extends transform.Transform with transform.TypingT
     override def transform(tree: Tree): Tree = {
       val sym = tree.symbol
 
-      def mayNeedProtectedAccessor(sel: Select, args: List[Tree], goToSuper: Boolean) =
+      def mayNeedProtectedAccessor(sel: Select, args: List[Tree], goToSuper: Boolean) = {
+        if (sym == NoSymbol) println("!!!NOSYM!!!" + tree)
         if (needsProtectedAccessor(sym, tree.pos)) {
           debuglog("Adding protected accessor for " + tree)
 
@@ -147,6 +148,7 @@ abstract class SuperAccessors extends transform.Transform with transform.TypingT
         }
         else if (goToSuper) super.transform(tree)
         else tree
+      }
 
       try tree match {
         // Don't transform patterns or strange trees will reach the matcher (ticket #4062)
@@ -235,7 +237,6 @@ abstract class SuperAccessors extends transform.Transform with transform.TypingT
                   }
                 }
               }
-
 
               def isAccessibleFromSuper(sym: Symbol) = {
                 val pre = SuperType(sym.owner.tpe, qual.tpe)

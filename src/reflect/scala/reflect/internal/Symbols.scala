@@ -162,7 +162,6 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     rawatt = initPos
 
     val id = nextId() // identity displayed when -uniqid
-    //assert(id != 3390, initName)
 
     private[this] var _validTo: Period = NoPeriod
 

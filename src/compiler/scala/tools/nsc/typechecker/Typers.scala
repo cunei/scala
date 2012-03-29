@@ -41,7 +41,7 @@ trait Typers extends Adaptations with Tags {
   // is cached here and re-used in typedDefDef / typedValDef
   // Also used to cache imports type-checked by namer.
   // Used only if -Yxnamer is not set
-  val transformed = new mutable.HashMap[Tree, Tree]
+  // val transformed = new mutable.HashMap[Tree, Tree]
 
   final val shortenImports = false
 
@@ -51,7 +51,6 @@ trait Typers extends Adaptations with Tags {
     resetImplicits()
     transformed.clear()
     clearDocComments()
-    if (!settings.Yxnamer.value) transformed.clear()
   }
 
   object UnTyper extends Traverser {
@@ -2882,12 +2881,7 @@ trait Typers extends Adaptations with Tags {
       }
     }
 
-    def typedImport(imp : Import): Import =
-      if (settings.Yxnamer.value) imp
-      else (transformed remove imp) match {
-        case Some(imp1: Import) => imp1
-        case _                  => log("unhandled import: "+imp+" in "+unit); imp
-      }
+    def typedImport(imp : Import) : Import = imp
 
     def typedStats(stats: List[Tree], exprOwner: Symbol): List[Tree] = {
       val inBlock = exprOwner == context.owner
@@ -2906,6 +2900,11 @@ trait Typers extends Adaptations with Tags {
                 context = context.make(imp)
                 typedImport(imp)
               } else EmptyTree
+            case ValDef(mods, name, tpt, rhs) if (stat.symbol.flags & PrivateLocal) != (mods.flags & PrivateLocal) =>
+              // todo: make field generation enterLate the new node.
+              //  once getters and setters are under the new scheme this case can be removed.
+              typedStat(treeCopy.ValDef(
+                stat, mods &~ PrivateLocal | (stat.symbol.flags & PrivateLocal), stat.symbol.name, tpt, rhs))
             case _ =>
               if (localTarget && !includesTargetPos(stat)) {
                 // skip typechecking of statements in a sequence where some other statement includes
@@ -2966,14 +2965,18 @@ trait Typers extends Adaptations with Tags {
 
       def processStat(sym: Symbol, oldstat: Tree = EmptyTree): Unit = {
         sym.initialize
-        val (newstat, dependent) = context.unit.lateDefs.remove(sym)
-        if (newstat != EmptyTree) { log("processStat new " + sym + " " + newstat); newStats += typedStat(newstat) }
-        else if (oldstat != EmptyTree) { log("processStat old " + sym + " " + newstat); newStats += typedStat(oldstat) }
+        val (latedef, dependent) = context.unit.lateDefs.remove(sym)
+        val newstat = latedef trans oldstat
+        if (newstat != EmptyTree) {
+          log("processStat "+(if (newstat == oldstat) "old " else "new ")+sym+" "+newstat)
+          newStats += typedStat(newstat)
+        }
         for (dep <- dependent) processStat(dep)
       }
 
-      for (stat <- stats)
-        processStat(if (stat.isDef) stat.symbol else NoSymbol, stat)
+      for (stat <- stats) {
+        processStat(if (stat.isDef || stat.isInstanceOf[Import]) stat.symbol else NoSymbol, stat)
+      }
 
       if (!phase.erasedTypes && !context.owner.isPackageClass) {
         // there are two reasons for excluding package members from
@@ -5543,17 +5546,18 @@ trait Typers extends Adaptations with Tags {
 
     def typedTypeConstructor(tree: Tree): Tree = typedTypeConstructor(tree, NOmode)
 
-    def typedRhs(tree: ValOrDefDef, mode: Mode, pt: Type): Tree =
-      if (settings.Yxnamer.value) // new scheme
-        if (tree.symbol hasFlag INFERRED) { tree.symbol resetFlag INFERRED; tree.rhs }
-        else typed(tree.rhs, mode, pt)
-      else
-        transformedOrTyped(tree.rhs, mode, pt)
+    def typedRhs(tree: ValOrDefDef, mode: Int, pt: Type): Tree =
+      if (tree.symbol hasFlag INFERRED) { tree.symbol resetFlag INFERRED; tree.rhs }
+      else typed(tree.rhs, mode, pt)
+
+      val isMacroBodyOkay = !tree.symbol.isErroneous && !(tree1 exists (_.isErroneous)) && tree1 != EmptyTree
+      val shouldInheritMacroImplReturnType = ddef.tpt.isEmpty
+      if (isMacroBodyOkay && shouldInheritMacroImplReturnType) computeMacroDefTypeFromMacroImpl(ddef, tree1.symbol) else AnyClass.tpe
+    }
 
 
     def packedTyped(tree: Tree, pt: Type): (Tree, Type) = {
       var tree1 = typed(tree, pt)
-      if (!settings.Yxnamer.value) transformed(tree) = tree1
       val tpe = packedType(tree1, context.owner)
       (tree1, tpe)
     }
