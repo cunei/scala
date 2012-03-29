@@ -178,6 +178,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     private var rawpos = initPos
 
     val id = nextId() // identity displayed when -uniqid
+
     private[this] var _validTo: Period = NoPeriod
 
     if (traceSymbolActivity)
@@ -1292,7 +1293,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
      *  which immediately follows any of parser, namer, typer, or erasure.
      *  In effect that means this will return one of:
      *
-     *    - packageobjects (follows namer) 
+     *    - packageobjects (follows namer)
      *    - superaccessors (follows typer)
      *    - lazyvals       (follows erasure)
      *    - null
@@ -1946,7 +1947,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
 
     /** Remove private modifier from symbol `sym`s definition. If `sym` is a
      *  is not a constructor nor a static module rename it by expanding its name to avoid name clashes
-     *  @param base  the fully qualified name of this class will be appended if name expansion is needed 
+     *  @param base  the fully qualified name of this class will be appended if name expansion is needed
      */
     final def makeNotPrivate(base: Symbol) {
       if (this.isPrivate) {
@@ -3068,7 +3069,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
 
     override def toString() =
       "TypeHistory(" + phaseOf(validFrom)+":"+runId(validFrom) + "," + info + "," + prev + ")"
-    
+
     def toList: List[TypeHistory] = this :: ( if (prev eq null) Nil else prev.toList )
   }
 }
