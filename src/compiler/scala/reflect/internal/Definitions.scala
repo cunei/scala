@@ -907,7 +907,8 @@ trait Definitions extends reflect.api.StandardDefinitions {
     lazy val SetterTargetClass          = getMetaAnnotation("setter")
     lazy val ClassTargetClass           = getMetaAnnotation("companionClass")
     lazy val ObjectTargetClass          = getMetaAnnotation("companionObject")
-    lazy val MethodTargetClass          = getMetaAnnotation("companionMethod")    // TODO: module, moduleClass? package, packageObject?
+    lazy val MethodTargetClass          = getMetaAnnotation("companionMethod")
+    // TODO: module, moduleClass? package, packageObject?
 
     private def getMetaAnnotation(name: String) = getRequiredClass("scala.annotation.meta." + name)
     def isMetaAnnotation(sym: Symbol): Boolean = metaAnnotations(sym) || (
@@ -981,6 +982,7 @@ trait Definitions extends reflect.api.StandardDefinitions {
         throw new FatalError(owner + " does not have a member " + name)
       }
     }
+
     def getMemberIfDefined(owner: Symbol, name: Name): Symbol =
       owner.info.nonPrivateMember(name)
 
