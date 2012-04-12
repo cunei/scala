@@ -14,6 +14,7 @@ package immutable
 import generic._
 import mutable.{Builder, ListBuffer}
 import annotation.tailrec
+import java.io._
 
 /** A class for immutable linked lists representing ordered collections
  *  of elements of type.
@@ -57,7 +58,7 @@ import annotation.tailrec
  *  @author  Martin Odersky and others
  *  @version 2.8
  *  @since   1.0
- *  @see  [["http://docs.scala-lang.org/overviews/collections/concrete-immutable-collection-classes.html#lists" "Scala's Collection Library overview"]]
+ *  @see  [[http://docs.scala-lang.org/overviews/collections/concrete-immutable-collection-classes.html#lists "Scala's Collection Library overview"]]
  *  section on `Lists` for more information.
  *
  *  @define coll list
@@ -92,8 +93,12 @@ sealed abstract class List[+A] extends AbstractSeq[A]
    *  @param x the element to prepend.
    *  @return  a list which contains `x` as first element and
    *           which continues with this list.
-   *  @example `1 :: List(2, 3) = List(2, 3).::(1) = List(1, 2, 3)`
+   *
    *  @usecase def ::(x: A): List[A]
+   *    @inheritdoc
+   *    
+   *    Example:
+   *    {{{1 :: List(2, 3) = List(2, 3).::(1) = List(1, 2, 3)}}}
    */
   def ::[B >: A] (x: B): List[B] =
     new scala.collection.immutable.::(x, this)
@@ -102,8 +107,12 @@ sealed abstract class List[+A] extends AbstractSeq[A]
    *  @param prefix  The list elements to prepend.
    *  @return a list resulting from the concatenation of the given
    *    list `prefix` and this list.
-   *  @example `List(1, 2) ::: List(3, 4) = List(3, 4).:::(List(1, 2)) = List(1, 2, 3, 4)`
+   *
    *  @usecase def :::(prefix: List[A]): List[A]
+   *    @inheritdoc
+   *
+   *    Example:
+   *    {{{List(1, 2) ::: List(3, 4) = List(3, 4).:::(List(1, 2)) = List(1, 2, 3, 4)}}}
    */
   def :::[B >: A](prefix: List[B]): List[B] =
     if (isEmpty) prefix
@@ -116,7 +125,9 @@ sealed abstract class List[+A] extends AbstractSeq[A]
    *
    *  @param prefix the prefix to reverse and then prepend
    *  @return       the concatenation of the reversed prefix and the current list.
+   *
    *  @usecase def reverse_:::(prefix: List[A]): List[A]
+   *    @inheritdoc
    */
   def reverse_:::[B >: A](prefix: List[B]): List[B] = {
     var these: List[B] = this
@@ -136,7 +147,9 @@ sealed abstract class List[+A] extends AbstractSeq[A]
    *  @tparam B     the element type of the returned collection.
    *  @return       a list resulting from applying the given function
    *                `f` to each element of this list and collecting the results.
+   *
    *  @usecase def mapConserve(f: A => A): List[A]
+   *    @inheritdoc
    */
   def mapConserve[B >: A <: AnyRef](f: A => B): List[B] = {
     @tailrec
@@ -204,6 +217,16 @@ sealed abstract class List[+A] extends AbstractSeq[A]
     these
   }
 
+  /**
+   *  @example {{{
+   *  // Given a list
+   *  val letters = List('a','b','c','d','e')
+   *
+   *  // `slice` returns all elements beginning at index `from` and afterwards,
+   *  // up until index `until` (excluding index `until`.)
+   *  letters.slice(1,3) // Returns List('b','c')
+   *  }}}
+   */
   override def slice(from: Int, until: Int): List[A] = {
     val lo = math.max(from, 0)
     if (until <= lo || isEmpty) Nil
@@ -316,16 +339,26 @@ final case class ::[B](private var hd: B, private[scala] var tl: List[B]) extend
   override def tail : List[B] = tl
   override def isEmpty: Boolean = false
 
-  import java.io._
-
   private def writeObject(out: ObjectOutputStream) {
-    var xs: List[B] = this
-    while (!xs.isEmpty) { out.writeObject(xs.head); xs = xs.tail }
-    out.writeObject(ListSerializeEnd)
+    out.writeObject(ListSerializeStart) // needed to differentiate with the legacy `::` serialization
+    out.writeObject(this.hd)
+    out.writeObject(this.tl)
   }
 
   private def readObject(in: ObjectInputStream) {
-    hd = in.readObject.asInstanceOf[B]
+    val obj = in.readObject()
+    if (obj == ListSerializeStart) {
+      this.hd = in.readObject().asInstanceOf[B]
+      this.tl = in.readObject().asInstanceOf[List[B]]
+    } else oldReadObject(in, obj)
+  }
+
+  /* The oldReadObject method exists here for compatibility reasons.
+   * :: objects used to be serialized by serializing all the elements to
+   * the output stream directly, but this was broken (see SI-5374).
+   */
+  private def oldReadObject(in: ObjectInputStream, firstObject: AnyRef) {
+    hd = firstObject.asInstanceOf[B]
     assert(hd != ListSerializeEnd)
     var current: ::[B] = this
     while (true) in.readObject match {
@@ -338,6 +371,13 @@ final case class ::[B](private var hd: B, private[scala] var tl: List[B]) extend
         current = list
     }
   }
+
+  private def oldWriteObject(out: ObjectOutputStream) {
+    var xs: List[B] = this
+    while (!xs.isEmpty) { out.writeObject(xs.head); xs = xs.tail }
+    out.writeObject(ListSerializeEnd)
+  }
+
 }
 
 /** $factoryInfo
@@ -602,5 +642,10 @@ object List extends SeqFactory[List] {
 }
 
 /** Only used for list serialization */
+@SerialVersionUID(0L - 8287891243975527522L)
+private[scala] case object ListSerializeStart
+
+/** Only used for list serialization */
 @SerialVersionUID(0L - 8476791151975527571L)
 private[scala] case object ListSerializeEnd
+

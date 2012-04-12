@@ -47,20 +47,20 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
         // ValDef case here.
 
         case dd @ DefDef(mods, name, tparams, vparamss, tpt, rhs) =>
-          log("transforming " + dd.symbol)
+          debuglog("transforming " + dd.symbol)
 
           atOwner(dd.symbol) {
             val rhs1 = transExpr(rhs, None, getExternalAnswerTypeAnn(tpt.tpe))
 
-            log("result "+rhs1)
-            log("result is of type "+rhs1.tpe)
+            debuglog("result "+rhs1)
+            debuglog("result is of type "+rhs1.tpe)
 
             treeCopy.DefDef(dd, mods, name, transformTypeDefs(tparams), transformValDefss(vparamss),
                         transform(tpt), rhs1)
           }
 
         case ff @ Function(vparams, body) =>
-          log("transforming anon function " + ff.symbol)
+          debuglog("transforming anon function " + ff.symbol)
 
           atOwner(ff.symbol) {
 
@@ -88,22 +88,26 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
                 transExpr(body, None, ext)
             }
 
-            log("result "+body1)
-            log("result is of type "+body1.tpe)
+            debuglog("result "+body1)
+            debuglog("result is of type "+body1.tpe)
 
             treeCopy.Function(ff, transformValDefs(vparams), body1)
           }
 
         case vd @ ValDef(mods, name, tpt, rhs) => // object-level valdefs
-          log("transforming valdef " + vd.symbol)
+          debuglog("transforming valdef " + vd.symbol)
 
-          atOwner(vd.symbol) {
+          if (getExternalAnswerTypeAnn(tpt.tpe).isEmpty) {
+            
+            atOwner(vd.symbol) {
 
-            assert(getExternalAnswerTypeAnn(tpt.tpe) == None)
+              val rhs1 = transExpr(rhs, None, None)
 
-            val rhs1 = transExpr(rhs, None, None)
-
-            treeCopy.ValDef(vd, mods, name, transform(tpt), rhs1)
+              treeCopy.ValDef(vd, mods, name, transform(tpt), rhs1)
+            }
+          } else {
+            unit.error(tree.pos, "cps annotations not allowed on by-value parameters or value definitions")
+            super.transform(tree)
           }
 
         case TypeTree() =>
@@ -298,23 +302,31 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
         if (!expr.isEmpty && (expr.tpe.typeSymbol ne NothingClass)) {
           // must convert!
-          log("cps type conversion (has: " + cpsA + "/" + spc + "/" + expr.tpe  + ")")
-          log("cps type conversion (expected: " + cpsR.get + "): " + expr)
+          debuglog("cps type conversion (has: " + cpsA + "/" + spc + "/" + expr.tpe  + ")")
+          debuglog("cps type conversion (expected: " + cpsR.get + "): " + expr)
 
           if (!hasPlusMarker(expr.tpe))
             unit.warning(tree.pos, "expression " + tree + " is cps-transformed unexpectedly")
 
           try {
             val Some((a, b)) = cpsR
-
-            val res = localTyper.typed(atPos(tree.pos) {
-                    Apply(TypeApply(gen.mkAttributedRef(MethShiftUnit),
-                      List(TypeTree(plainTpe), TypeTree(a), TypeTree(b))),
-                       List(expr))
-            })
-            return (stms, res)
-
-          } catch {
+            /** Since shiftUnit is bounded [A,B,C>:B] this may not typecheck
+             *  if C is overly specific.  So if !(B <:< C), call shiftUnit0
+             *  instead, which takes only two type arguments.
+             */
+            val conforms = a <:< b
+            val call = localTyper.typedPos(tree.pos)(
+              Apply(
+                TypeApply(
+                  gen.mkAttributedRef( if (conforms) MethShiftUnit else MethShiftUnit0 ),
+                  List(TypeTree(plainTpe), TypeTree(a)) ++ ( if (conforms) List(TypeTree(b)) else Nil )
+                ),
+                List(expr)
+              )
+            )
+            return ((stms, call))
+          }
+          catch {
             case ex:TypeError =>
               unit.error(ex.pos, "cannot cps-transform expression " + tree + ": " + ex.msg)
           }
@@ -322,10 +334,10 @@ abstract class SelectiveANFTransform extends PluginComponent with Transform with
 
       } else if (!cpsR.isDefined && bot.isDefined) {
         // error!
-        log("cps type error: " + expr)
+        debuglog("cps type error: " + expr)
         //println("cps type error: " + expr + "/" + expr.tpe + "/" + getAnswerTypeAnn(expr.tpe))
 
-        println(cpsR + "/" + spc + "/" + bot)
+        //println(cpsR + "/" + spc + "/" + bot)
 
         unit.error(tree.pos, "found cps expression in non-cps position")
       } else {

@@ -94,7 +94,7 @@ abstract class GenICode extends SubComponent  {
 
       // !! modules should be eliminated by refcheck... or not?
       case ModuleDef(mods, name, impl) =>
-        abort("Modules should not reach backend!")
+        abort("Modules should not reach backend! " + tree)
 
       case ValDef(mods, name, tpt, rhs) =>
         ctx // we use the symbol to add fields
@@ -133,7 +133,7 @@ abstract class GenICode extends SubComponent  {
           if (!ctx1.bb.closed) ctx1.bb.close
           prune(ctx1.method)
         } else
-          ctx1.method.setCode(null)
+          ctx1.method.setCode(NoCode)
         ctx1
 
       case Template(_, _, body) =>
@@ -179,7 +179,7 @@ abstract class GenICode extends SubComponent  {
     }
 
     private def genThrow(expr: Tree, ctx: Context): (Context, TypeKind) = {
-      require(expr.tpe <:< ThrowableClass.tpe)
+      require(expr.tpe <:< ThrowableClass.tpe, expr.tpe)
 
       val thrownKind = toTypeKind(expr.tpe)
       val ctx1       = genLoad(expr, ctx, thrownKind)
@@ -393,15 +393,15 @@ abstract class GenICode extends SubComponent  {
         for (CaseDef(pat, _, body) <- catches.reverse) yield {
           def genWildcardHandler(sym: Symbol): (Symbol, TypeKind, Context => Context) =
             (sym, kind, ctx => {
-              ctx.bb.emit(DROP(REFERENCE(sym)))
+              ctx.bb.emit(DROP(REFERENCE(sym))) // drop the loaded exception
               genLoad(body, ctx, kind)
             })
 
           pat match {
             case Typed(Ident(nme.WILDCARD), tpt)  => genWildcardHandler(tpt.tpe.typeSymbol)
             case Ident(nme.WILDCARD)              => genWildcardHandler(ThrowableClass)
-            case Bind(name, _)                    =>
-              val exception = ctx.method addLocal new Local(pat.symbol, toTypeKind(pat.symbol.tpe), false)
+            case Bind(_, _)                       =>
+              val exception = ctx.method addLocal new Local(pat.symbol, toTypeKind(pat.symbol.tpe), false) // the exception will be loaded and stored into this local
 
               (pat.symbol.tpe.typeSymbol, kind, {
                 ctx: Context =>
@@ -480,7 +480,7 @@ abstract class GenICode extends SubComponent  {
      */
     private def msil_genLoadZeroOfNonEnumValuetype(ctx: Context, kind: TypeKind, pos: Position, leaveAddressOnStackInstead: Boolean) {
       val REFERENCE(clssym) = kind
-      assert(loaders.clrTypes.isNonEnumValuetype(clssym))
+      assert(loaders.clrTypes.isNonEnumValuetype(clssym), clssym)
       val local = ctx.makeLocal(pos, clssym.tpe, "tmp")
       ctx.method.addLocal(local)
       ctx.bb.emit(CIL_LOAD_LOCAL_ADDRESS(local), pos)
@@ -704,7 +704,8 @@ abstract class GenICode extends SubComponent  {
           ctx1
 
         case New(tpt) =>
-          abort("Unexpected New")
+          abort("Unexpected New(" + tpt.summaryString + "/" + tpt + ") received in icode.\n" +
+            "  Call was genLoad" + ((tree, ctx, expectedType)))
 
         case Apply(TypeApply(fun, targs), _) =>
           val sym = fun.symbol
@@ -867,6 +868,13 @@ abstract class GenICode extends SubComponent  {
                   abort("Unknown label target: " + sym + " at: " + (fun.pos) + ": ctx: " + ctx)
               }
             })
+            // note: when one of the args to genLoadLabelArguments is a jump to a label,
+            // it will call back into genLoad and arrive at this case, which will then set ctx1.bb.ignore to true,
+            // this is okay, since we're jumping unconditionally, so the loads and jumps emitted by the outer
+            // call to genLoad (by calling genLoadLabelArguments and emitOnly) can safely be ignored,
+            // however, as emitOnly will close the block, which reverses its instructions (when it's still open),
+            // we better not reverse when the block has already been closed but is in ignore mode
+            // (if it's not in ignore mode, double-closing is an error)
             val ctx1 = genLoadLabelArguments(args, label, ctx)
             ctx1.bb.emitOnly(if (label.anchored) JUMP(label.block) else PJUMP(label))
             ctx1.bb.enterIgnoreMode
@@ -936,11 +944,10 @@ abstract class GenICode extends SubComponent  {
                  "Trying to access the this of another class: " +
                  "tree.symbol = " + tree.symbol + ", ctx.clazz.symbol = " + ctx.clazz.symbol + " compilation unit:"+unit)
           if (tree.symbol.isModuleClass && tree.symbol != ctx.clazz.symbol) {
-            debuglog("LOAD_MODULE from 'This': " + tree.symbol);
-            assert(!tree.symbol.isPackageClass, "Cannot use package as value: " + tree)
-            genLoadModule(ctx, tree.symbol, tree.pos)
+            genLoadModule(ctx, tree)
             generatedType = REFERENCE(tree.symbol)
-          } else {
+          }
+          else {
             ctx.bb.emit(THIS(ctx.clazz.symbol), tree.pos)
             generatedType = REFERENCE(
               if (tree.symbol == ArrayClass) ObjectClass else ctx.clazz.symbol
@@ -953,11 +960,7 @@ abstract class GenICode extends SubComponent  {
             "Selection of non-module from empty package: " + tree +
             " sym: " + tree.symbol + " at: " + (tree.pos)
           )
-          debuglog("LOAD_MODULE from Select(<emptypackage>): " + tree.symbol)
-
-          assert(!tree.symbol.isPackageClass, "Cannot use package as value: " + tree)
-          genLoadModule(ctx, tree.symbol, tree.pos)
-          ctx
+          genLoadModule(ctx, tree)
 
         case Select(qualifier, selector) =>
           val sym = tree.symbol
@@ -965,14 +968,13 @@ abstract class GenICode extends SubComponent  {
           val hostClass = qualifier.tpe.typeSymbol.orElse(sym.owner)
 
           if (sym.isModule) {
-            debuglog("LOAD_MODULE from Select(qualifier, selector): " + sym)
-            assert(!tree.symbol.isPackageClass, "Cannot use package as value: " + tree)
-            genLoadModule(ctx, sym, tree.pos)
-            ctx
-          } else if (sym.isStaticMember) {
+            genLoadModule(ctx, tree)
+          }
+          else if (sym.isStaticMember) {
             ctx.bb.emit(LOAD_FIELD(sym, true)  setHostClass hostClass, tree.pos)
             ctx
-          } else {
+          }
+          else {
             val ctx1 = genLoadQualifier(tree, ctx)
             ctx1.bb.emit(LOAD_FIELD(sym, false) setHostClass hostClass, tree.pos)
             ctx1
@@ -982,11 +984,10 @@ abstract class GenICode extends SubComponent  {
           val sym = tree.symbol
           if (!sym.isPackage) {
             if (sym.isModule) {
-              debuglog("LOAD_MODULE from Ident(name): " + sym)
-              assert(!sym.isPackageClass, "Cannot use package as value: " + tree)
-              genLoadModule(ctx, sym, tree.pos)
+              genLoadModule(ctx, tree)
               generatedType = toTypeKind(sym.info)
-            } else {
+            }
+            else {
               try {
                 val Some(l) = ctx.method.lookupLocal(sym)
                 ctx.bb.emit(LOAD_LOCAL(l), tree.pos)
@@ -1054,7 +1055,7 @@ abstract class GenICode extends SubComponent  {
 
         case Match(selector, cases) =>
           debuglog("Generating SWITCH statement.");
-          var ctx1 = genLoad(selector, ctx, INT)
+          var ctx1 = genLoad(selector, ctx, INT) // TODO: Java 7 allows strings in switches (so, don't assume INT and don't convert the literals using intValue)
           val afterCtx = ctx1.newBlock
           var caseCtx: Context  = null
           generatedType = toTypeKind(tree.tpe)
@@ -1064,7 +1065,7 @@ abstract class GenICode extends SubComponent  {
           var default: BasicBlock = afterCtx.bb
 
           for (caze @ CaseDef(pat, guard, body) <- cases) {
-            assert(guard == EmptyTree)
+            assert(guard == EmptyTree, guard)
             val tmpCtx = ctx1.newBlock
             pat match {
               case Literal(value) =>
@@ -1072,6 +1073,15 @@ abstract class GenICode extends SubComponent  {
                 targets = tmpCtx.bb :: targets
               case Ident(nme.WILDCARD) =>
                 default = tmpCtx.bb
+              case Alternative(alts) =>
+                alts foreach {
+                  case Literal(value) =>
+                    tags = value.intValue :: tags
+                    targets = tmpCtx.bb :: targets
+                  case _ =>
+                    abort("Invalid case in alternative in switch-like pattern match: " +
+                          tree + " at: " + tree.pos)
+                }
               case _ =>
                 abort("Invalid case statement in switch-like pattern match: " +
                       tree + " at: " + (tree.pos))
@@ -1190,8 +1200,19 @@ abstract class GenICode extends SubComponent  {
           genLoad(arg, res, toTypeKind(tpe))
       }
 
-    private def genLoadModule(ctx: Context, sym: Symbol, pos: Position) {
-      ctx.bb.emit(LOAD_MODULE(sym), pos)
+    private def genLoadModule(ctx: Context, tree: Tree): Context = {
+      // Working around SI-5604.  Rather than failing the compile when we see
+      // a package here, check if there's a package object.
+      val sym = (
+        if (!tree.symbol.isPackageClass) tree.symbol
+        else tree.symbol.info.member(nme.PACKAGE) match {
+          case NoSymbol => assert(false, "Cannot use package as value: " + tree) ; NoSymbol
+          case s        => Console.err.println("Bug: found package class where package object expected.  Converting.") ; s.moduleClass
+        }
+      )
+      debuglog("LOAD_MODULE from %s: %s".format(tree.shortClass, sym))
+      ctx.bb.emit(LOAD_MODULE(sym), tree.pos)
+      ctx
     }
 
     def genConversion(from: TypeKind, to: TypeKind, ctx: Context, cast: Boolean) = {
@@ -1512,7 +1533,7 @@ abstract class GenICode extends SubComponent  {
      */
     def genEqEqPrimitive(l: Tree, r: Tree, ctx: Context)(thenCtx: Context, elseCtx: Context): Unit = {
       def getTempLocal = ctx.method.lookupLocal(nme.EQEQ_LOCAL_VAR) getOrElse {
-        ctx.makeLocal(l.pos, AnyRefClass.typeConstructor, nme.EQEQ_LOCAL_VAR)
+        ctx.makeLocal(l.pos, AnyRefClass.tpe, nme.EQEQ_LOCAL_VAR)
       }
 
       /** True if the equality comparison is between values that require the use of the rich equality
@@ -1528,7 +1549,7 @@ abstract class GenICode extends SubComponent  {
       if (mustUseAnyComparator) {
         // when -optimise is on we call the @inline-version of equals, found in ScalaRunTime
         val equalsMethod =
-          if (!settings.XO.value) {
+          if (!settings.optimise.value) {
             def default = platform.externalEquals
             platform match {
               case x: JavaPlatform =>
@@ -1550,9 +1571,10 @@ abstract class GenICode extends SubComponent  {
 
         val ctx1 = genLoad(l, ctx, ObjectReference)
         val ctx2 = genLoad(r, ctx1, ObjectReference)
-        ctx2.bb.emit(CALL_METHOD(equalsMethod, if (settings.XO.value) Dynamic else Static(false)))
-        ctx2.bb.emit(CZJUMP(thenCtx.bb, elseCtx.bb, NE, BOOL))
-        ctx2.bb.close
+        ctx2.bb.emitOnly(
+          CALL_METHOD(equalsMethod, if (settings.optimise.value) Dynamic else Static(false)),
+          CZJUMP(thenCtx.bb, elseCtx.bb, NE, BOOL)
+        )
       }
       else {
         if (isNull(l))
@@ -2077,12 +2099,12 @@ abstract class GenICode extends SubComponent  {
           exh
         }) else None
 
-        val exhs = handlers.map { handler =>
-            val exh = this.newExceptionHandler(handler._1, handler._2, tree.pos)
+        val exhs = handlers.map { case (sym, kind, handler) =>  // def genWildcardHandler(sym: Symbol): (Symbol, TypeKind, Context => Context) =
+            val exh = this.newExceptionHandler(sym, kind, tree.pos)
             var ctx1 = outerCtx.enterExceptionHandler(exh)
             ctx1.addFinalizer(finalizer, finalizerCtx)
             loadException(ctx1, exh, tree.pos)
-            ctx1 = handler._3(ctx1)
+            ctx1 = handler(ctx1)
             // emit finalizer
             val ctx2 = emitFinalizer(ctx1)
             ctx2.bb.closeWith(JUMP(afterCtx.bb))

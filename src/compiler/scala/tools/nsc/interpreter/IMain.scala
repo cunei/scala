@@ -93,6 +93,11 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
   private var _lineManager: Line.Manager            = null                              // logic for individual lines
   private val _compiler: Global                     = newCompiler(settings, reporter)   // our private compiler
 
+  private val nextReqId = {
+    var counter = 0
+    () => { counter += 1 ; counter }
+  }
+
   def compilerClasspath: Seq[URL] = (
     if (isInitializeComplete) global.classPath.asURLs
     else new PathResolver(settings).result.asURLs  // the compiler's classpath
@@ -196,7 +201,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
       def foreach[U](f: Tree => U): Unit = t foreach { x => f(x) ; () }
     }).toList
   }
-  
+
   implicit def installReplTypeOps(tp: Type): ReplTypeOps = new ReplTypeOps(tp)
   class ReplTypeOps(tp: Type) {
     def orElse(other: => Type): Type    = if (tp ne NoType) tp else other
@@ -229,9 +234,6 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
     val intp: imain.type = imain
   } with MemberHandlers
   import memberHandlers._
-
-  def atPickler[T](op: => T): T = atPhase(currentRun.picklerPhase)(op)
-  def afterTyper[T](op: => T): T = atPhase(currentRun.typerPhase.next)(op)
 
   /** Temporarily be quiet */
   def beQuietDuring[T](body: => T): T = {
@@ -269,7 +271,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
 
   /** Create a line manager.  Overridable.  */
   protected def noLineManager = ReplPropsKludge.noThreadCreation(settings)
-  protected def createLineManager(): Line.Manager = new Line.Manager(_classLoader)
+  protected def createLineManager(classLoader: ClassLoader): Line.Manager = new Line.Manager(classLoader)
 
   /** Instantiate a compiler.  Overridable. */
   protected def newCompiler(settings: Settings, reporter: Reporter) = {
@@ -304,7 +306,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
   final def ensureClassLoader() {
     if (_classLoader == null) {
       _classLoader = makeClassLoader()
-      _lineManager = if (noLineManager) null else createLineManager()
+      _lineManager = if (noLineManager) null else createLineManager(_classLoader)
     }
   }
   def classLoader: AbstractFileClassLoader = {
@@ -460,7 +462,10 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
 
   /** Build a request from the user. `trees` is `line` after being parsed.
    */
-  private def buildRequest(line: String, trees: List[Tree]): Request = new Request(line, trees)
+  private def buildRequest(line: String, trees: List[Tree]): Request = {
+    executingRequest = new Request(line, trees)
+    executingRequest
+  }
 
   // rewriting "5 // foo" to "val x = { 5 // foo }" creates broken code because
   // the close brace is commented out.  Strip single-line comments.
@@ -559,17 +564,10 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
     Right(buildRequest(line, trees))
   }
 
-  def typeCleanser(sym: Symbol, memberName: Name): Type = {
-    // the types are all =>T; remove the =>
-    val tp1 = afterTyper(sym.info.nonPrivateDecl(memberName).tpe match {
-      case NullaryMethodType(tp) => tp
-      case tp                    => tp
-    })
-    // normalize non-public types so we don't see protected aliases like Self
-    afterTyper(tp1 match {
-      case TypeRef(_, sym, _) if !sym.isPublic  => tp1.normalize
-      case tp                                   => tp
-    })
+  // normalize non-public types so we don't see protected aliases like Self
+  def normalizeNonPublic(tp: Type) = tp match {
+    case TypeRef(_, sym, _) if sym.isAliasType && !sym.isPublic => tp.normalize
+    case _                                                      => tp
   }
 
   /**
@@ -626,7 +624,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
    *  @param value     the object value to bind to it
    *  @return          an indication of whether the binding succeeded
    */
-  def bind(name: String, boundType: String, value: Any): IR.Result = {
+  def bind(name: String, boundType: String, value: Any, modifiers: List[String] = Nil): IR.Result = {
     val bindRep = new ReadEvalPrint()
     val run = bindRep.compile("""
         |object %s {
@@ -642,7 +640,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
         IR.Error
 
       case Right(_) =>
-        val line = "val %s = %s.value".format(name, bindRep.evalPath)
+        val line = "%sval %s = %s.value".format(modifiers map (_ + " ") mkString, name, bindRep.evalPath)
         repldbg("Interpreting: " + line)
         interpret(line)
     }
@@ -787,10 +785,6 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
     }
 
     def compile(source: String): Boolean = compileAndSaveRun("<console>", source)
-    def lineAfterTyper[T](op: => T): T = {
-      assert(lastRun != null, "Internal error: trying to use atPhase, but Run is null." + this)
-      atPhase(lastRun.typerPhase.next)(op)
-    }
 
     /** The innermost object inside the wrapper, found by
       * following accessPath into the outer one.
@@ -799,7 +793,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
       val readRoot  = getRequiredModule(readPath)   // the outermost wrapper
       (accessPath split '.').foldLeft(readRoot) { (sym, name) =>
         if (name == "") sym else
-        lineAfterTyper(sym.info member newTermName(name))
+        afterTyper(sym.info member newTermName(name))
       }
     }
     /** We get a bunch of repeated warnings for reasons I haven't
@@ -841,8 +835,8 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
   /** One line of code submitted by the user for interpretation */
   // private
   class Request(val line: String, val trees: List[Tree]) {
+    val reqId = nextReqId()
     val lineRep = new ReadEvalPrint()
-    import lineRep.lineAfterTyper
 
     private var _originalLine: String = null
     def withOriginalLine(s: String): this.type = { _originalLine = s ; this }
@@ -890,13 +884,30 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
 
     /** generate the source code for the object that computes this request */
     private object ObjectSourceCode extends CodeAssembler[MemberHandler] {
+      def path = pathToTerm("$intp")
+      def envLines = {
+        if (!isReplPower) Nil // power mode only for now
+        // $intp is not bound; punt, but include the line.
+        else if (path == "$intp") List(
+          "def $line = " + tquoted(originalLine),
+          "def $trees = Nil"
+        )
+        else List(
+          "def $line  = " + tquoted(originalLine),
+          "def $req = %s.requestForReqId(%s).orNull".format(path, reqId),
+          "def $trees = if ($req eq null) Nil else $req.trees".format(lineRep.readName, path, reqId)
+        )
+      }
+
       val preamble = """
         |object %s {
-        |%s%s
-      """.stripMargin.format(lineRep.readName, importsPreamble, indentCode(toCompute))
+        |%s%s%s
+      """.stripMargin.format(lineRep.readName, envLines.map("  " + _ + ";\n").mkString, importsPreamble, indentCode(toCompute))
       val postamble = importsTrailer + "\n}"
       val generate = (m: MemberHandler) => m extraCodeToEvaluate Request.this
     }
+
+    def tquoted(s: String) = "\"\"\"" + s + "\"\"\""
 
     private object ResultObjectSourceCode extends CodeAssembler[MemberHandler] {
       /** We only want to generate this code when the result
@@ -906,11 +917,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
         if (!handlers.last.definesValue) ""
         else handlers.last.definesTerm match {
           case Some(vname) if typeOf contains vname =>
-            """
-            |lazy val %s = {
-            |  %s
-            |  %s
-            |}""".stripMargin.format(lineRep.resultName, lineRep.printName, fullPath(vname))
+            "lazy val %s = %s".format(lineRep.resultName, fullPath(vname))
           case _  => ""
         }
       // first line evaluates object to make sure constructor is run
@@ -956,7 +963,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
         typesOfDefinedTerms
 
         // compile the result-extraction object
-        beSilentDuring {
+        beQuietDuring {
           savingSettings(_.nowarn.value = true) {
             lineRep compile ResultObjectSourceCode(handlers)
           }
@@ -965,14 +972,15 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
     }
 
     lazy val resultSymbol = lineRep.resolvePathToSymbol(accessPath)
-    def applyToResultMember[T](name: Name, f: Symbol => T) = lineAfterTyper(f(resultSymbol.info.nonPrivateDecl(name)))
+    def applyToResultMember[T](name: Name, f: Symbol => T) = afterTyper(f(resultSymbol.info.nonPrivateDecl(name)))
 
     /* typeOf lookup with encoding */
     def lookupTypeOf(name: Name) = typeOf.getOrElse(name, typeOf(global.encode(name.toString)))
     def simpleNameOfType(name: TypeName) = (compilerTypeOf get name) map (_.typeSymbol.simpleName)
 
-    private def typeMap[T](f: Type => T): Map[Name, T] =
-      termNames ++ typeNames map (x => x -> f(typeCleanser(resultSymbol, x))) toMap
+    private def typeMap[T](f: Type => T): Map[Name, T] = {
+      termNames ++ typeNames map (x => x -> f(cleanMemberDecl(resultSymbol, x))) toMap
+    }
 
     /** Types of variables defined by this request. */
     lazy val compilerTypeOf = typeMap[Type](x => x)
@@ -1035,6 +1043,13 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
       getOrElse Nil
   )
 
+  def treesForRequestId(id: Int): List[Tree] =
+    requestForReqId(id).toList flatMap (_.trees)
+
+  def requestForReqId(id: Int): Option[Request] =
+    if (executingRequest != null && executingRequest.reqId == id) Some(executingRequest)
+    else prevRequests find (_.reqId == id)
+
   def requestForName(name: Name): Option[Request] = {
     assert(definedNameMap != null, "definedNameMap is null")
     definedNameMap get name
@@ -1078,10 +1093,18 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
       val clazz      = classOfTerm(id) getOrElse { return NoType }
       val staticSym  = tpe.typeSymbol
       val runtimeSym = getClassIfDefined(clazz.getName)
-      
+
       if ((runtimeSym != NoSymbol) && (runtimeSym != staticSym) && (runtimeSym isSubClass staticSym))
         runtimeSym.info
       else NoType
+    }
+  }
+  def cleanMemberDecl(owner: Symbol, member: Name): Type = afterTyper {
+    normalizeNonPublic {
+      owner.info.nonPrivateDecl(member).tpe match {
+        case NullaryMethodType(tp) => tp
+        case tp                    => tp
+      }
     }
   }
 
@@ -1125,17 +1148,23 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
     val termname = newTypeName(name)
     findName(termname) getOrElse getModuleIfDefined(termname)
   }
+  def types[T: ClassManifest] : Symbol = types(classManifest[T].erasure.getName)
+  def terms[T: ClassManifest] : Symbol = terms(classManifest[T].erasure.getName)
+  def apply[T: ClassManifest] : Symbol = apply(classManifest[T].erasure.getName)
 
   /** the previous requests this interpreter has processed */
-  private lazy val prevRequests       = mutable.ListBuffer[Request]()
-  private lazy val referencedNameMap  = mutable.Map[Name, Request]()
-  private lazy val definedNameMap     = mutable.Map[Name, Request]()
-  private lazy val directlyBoundNames = mutable.Set[Name]()
-  protected def prevRequestList       = prevRequests.toList
-  private def allHandlers             = prevRequestList flatMap (_.handlers)
-  def allSeenTypes                    = prevRequestList flatMap (_.typeOf.values.toList) distinct
-  def allImplicits                    = allHandlers filter (_.definesImplicit) flatMap (_.definedNames)
-  def importHandlers                  = allHandlers collect { case x: ImportHandler => x }
+  private var executingRequest: Request = _
+  private val prevRequests       = mutable.ListBuffer[Request]()
+  private val referencedNameMap  = mutable.Map[Name, Request]()
+  private val definedNameMap     = mutable.Map[Name, Request]()
+  private val directlyBoundNames = mutable.Set[Name]()
+
+  private def allHandlers = prevRequestList flatMap (_.handlers)
+  def lastRequest         = if (prevRequests.isEmpty) null else prevRequests.last
+  def prevRequestList     = prevRequests.toList
+  def allSeenTypes        = prevRequestList flatMap (_.typeOf.values.toList) distinct
+  def allImplicits        = allHandlers filter (_.definesImplicit) flatMap (_.definedNames)
+  def importHandlers      = allHandlers collect { case x: ImportHandler => x }
 
   def visibleTermNames: List[Name] = definedTerms ++ importedTerms distinct
 

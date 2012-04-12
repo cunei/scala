@@ -9,7 +9,40 @@ package util
 
 object Position {
   val tabInc = 8
+
+  /** Prints the message with the given position indication. */
+  def formatMessage(posIn: Position, msg: String, shortenFile: Boolean): String = {
+    val pos = (
+      if (posIn eq null) NoPosition
+      else if (posIn.isDefined) posIn.inUltimateSource(posIn.source)
+      else posIn
+    )
+    def file   = pos.source.file
+    def prefix = if (shortenFile) file.name else file.path
+
+    pos match {
+      case FakePos(fmsg) => fmsg+" "+msg
+      case NoPosition    => msg
+      case _             =>
+        List(
+          "%s:%s: %s".format(prefix, pos.line, msg),
+          pos.lineContent.stripLineEnd,
+          " " * (pos.column - 1) + "^"
+        ) mkString "\n"
+    }
+  }
 }
+
+/**
+ * A tree does not directly store a Position. It stores a TreeAnnotation, which /typically/ is a Position.
+ *
+ * A TreeAnnotion may encompass more than just a Position, though, depending on the exact subclass of TreeAnnotation.
+ */
+trait TreeAnnotation {
+  def pos: Position
+}
+
+
 /** The Position class and its subclasses represent positions of ASTs and symbols.
  *  Except for NoPosition and FakePos, every position refers to a SourceFile
  *  and to an offset in the sourcefile (its `point`). For batch compilation,
@@ -54,7 +87,8 @@ object Position {
  *  pos.makeTransparent converts an opaque range position into a transparent one.
  *                      returns all other positions unchanged.
  */
-trait Position {
+trait Position extends TreeAnnotation {
+  def pos: Position = this
 
   /** An optional value containing the source file referred to by this position, or
    *  None if not defined.

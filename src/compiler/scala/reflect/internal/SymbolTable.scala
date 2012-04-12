@@ -8,13 +8,17 @@ package internal
 
 import scala.collection.{ mutable, immutable }
 import util._
+import scala.tools.nsc.util.WeakHashSet
 
 abstract class SymbolTable extends api.Universe
                               with Collections
                               with Names
+                              with SymbolCreations
                               with Symbols
+                              with SymbolFlags
                               with Types
                               with Kinds
+                              with ExistentialsAndSkolems
                               with Scopes
                               with Definitions
                               with Constants
@@ -33,12 +37,17 @@ abstract class SymbolTable extends api.Universe
 {
   def rootLoader: LazyType
   def log(msg: => AnyRef): Unit
-  def abort(msg: String): Nothing = throw new FatalError(msg)
+  def abort(msg: String): Nothing = throw new FatalError(supplementErrorMessage(msg))
+
+  @deprecated("Give us a reason", "2.10.0")
   def abort(): Nothing = abort("unknown error")
 
   /** Override with final implementation for inlining. */
   def debuglog(msg:  => String): Unit = if (settings.debug.value) log(msg)
   def debugwarn(msg: => String): Unit = if (settings.debug.value) Console.err.println(msg)
+
+  /** Overridden when we know more about what was happening during a failure. */
+  def supplementErrorMessage(msg: String): String = msg
 
   private[scala] def printResult[T](msg: String)(result: T) = {
     Console.err.println(msg + ": " + result)
@@ -48,6 +57,19 @@ abstract class SymbolTable extends api.Universe
     log(msg + ": " + result)
     result
   }
+  private[scala] def logResultIf[T](msg: String, cond: T => Boolean)(result: T): T = {
+    if (cond(result))
+      log(msg + ": " + result)
+
+    result
+  }
+
+  /** Dump each symbol to stdout after shutdown.
+   */
+  final val traceSymbolActivity = sys.props contains "scalac.debug.syms"
+  object traceSymbols extends {
+    val global: SymbolTable.this.type = SymbolTable.this
+  } with util.TraceSymbolActivity
 
   /** Are we compiling for Java SE? */
   // def forJVM: Boolean
@@ -72,16 +94,34 @@ abstract class SymbolTable extends api.Universe
   type RunId = Int
   final val NoRunId = 0
 
+  // sigh, this has to be public or atPhase doesn't inline.
+  var phStack: List[Phase] = Nil
   private var ph: Phase = NoPhase
   private var per = NoPeriod
 
+  final def atPhaseStack: List[Phase] = phStack
   final def phase: Phase = ph
+
+  def atPhaseStackMessage = atPhaseStack match {
+    case Nil    => ""
+    case ps     => ps.reverseMap("->" + _).mkString("(", " ", ")")
+  }
 
   final def phase_=(p: Phase) {
     //System.out.println("setting phase to " + p)
-    assert((p ne null) && p != NoPhase)
+    assert((p ne null) && p != NoPhase, p)
     ph = p
-    per = (currentRunId << 8) + p.id
+    per = period(currentRunId, p.id)
+  }
+  final def pushPhase(ph: Phase): Phase = {
+    val current = phase
+    phase = ph
+    phStack ::= ph
+    current
+  }
+  final def popPhase(ph: Phase) {
+    phStack = phStack.tail
+    phase = ph
   }
 
   /** The current compiler run identifier. */
@@ -106,21 +146,30 @@ abstract class SymbolTable extends api.Universe
   final def phaseOf(period: Period): Phase = phaseWithId(phaseId(period))
 
   final def period(rid: RunId, pid: Phase#Id): Period =
-    (currentRunId << 8) + pid
+    (rid << 8) + pid
+
+  /** Are we later than given phase in compilation? */
+  final def isAtPhaseAfter(p: Phase) =
+    p != NoPhase && phase.id > p.id
 
   /** Perform given operation at given phase. */
   @inline final def atPhase[T](ph: Phase)(op: => T): T = {
-    val current = phase
-    phase = ph
+    val saved = pushPhase(ph)
     try op
-    finally phase = current
+    finally popPhase(saved)
   }
+  
 
-  @inline final def afterPhase[T](ph: Phase)(op: => T): T =
-    atPhase(ph.next)(op)
+  /** Since when it is to be "at" a phase is inherently ambiguous,
+   *  a couple unambiguously named methods.
+   */
+  @inline final def beforePhase[T](ph: Phase)(op: => T): T = atPhase(ph)(op)
+  @inline final def afterPhase[T](ph: Phase)(op: => T): T  = atPhase(ph.next)(op)
+  @inline final def afterCurrentPhase[T](op: => T): T      = atPhase(phase.next)(op)
+  @inline final def beforePrevPhase[T](op: => T): T        = atPhase(phase.prev)(op)
 
   @inline final def atPhaseNotLaterThan[T](target: Phase)(op: => T): T =
-    if (target != NoPhase && phase.id > target.id) atPhase(target)(op) else op
+    if (isAtPhaseAfter(target)) atPhase(target)(op) else op
 
   final def isValid(period: Period): Boolean =
     period != 0 && runId(period) == currentRunId && {
@@ -159,7 +208,7 @@ abstract class SymbolTable extends api.Universe
     }
     // enter decls of parent classes
     for (p <- container.parentSymbols) {
-      if (p != definitions.ObjectClass && p != definitions.ScalaObjectClass) {
+      if (p != definitions.ObjectClass) {
         openPackageModule(p, dest)
       }
     }
@@ -171,7 +220,7 @@ abstract class SymbolTable extends api.Universe
   def arrayToRepeated(tp: Type): Type = tp match {
     case MethodType(params, rtpe) =>
       val formals = tp.paramTypes
-      assert(formals.last.typeSymbol == definitions.ArrayClass)
+      assert(formals.last.typeSymbol == definitions.ArrayClass, formals)
       val method = params.last.owner
       val elemtp = formals.last.typeArgs.head match {
         case RefinedType(List(t1, t2), _) if (t1.typeSymbol.isAbstractType && t2.typeSymbol == definitions.ObjectClass) =>
@@ -179,8 +228,7 @@ abstract class SymbolTable extends api.Universe
         case t =>
           t
       }
-      val newParams = method.newSyntheticValueParams(
-        formals.init :+ appliedType(definitions.JavaRepeatedParamClass.typeConstructor, List(elemtp)))
+      val newParams = method.newSyntheticValueParams(formals.init :+ definitions.javaRepeatedType(elemtp))
       MethodType(newParams, rtpe)
     case PolyType(tparams, rtpe) =>
       PolyType(tparams, arrayToRepeated(rtpe))
@@ -252,9 +300,10 @@ abstract class SymbolTable extends api.Universe
       }
     }
 
-    def newWeakMap[K, V]() = recordCache(mutable.WeakHashMap[K, V]())
-    def newMap[K, V]()     = recordCache(mutable.HashMap[K, V]())
-    def newSet[K]()        = recordCache(mutable.HashSet[K]())
+    def newWeakMap[K, V]()        = recordCache(mutable.WeakHashMap[K, V]())
+    def newMap[K, V]()            = recordCache(mutable.HashMap[K, V]())
+    def newSet[K]()               = recordCache(mutable.HashSet[K]())
+    def newWeakSet[K <: AnyRef]() = recordCache(new WeakHashSet[K]())
   }
 
   /** Break into repl debugger if assertion is true. */
@@ -271,4 +320,9 @@ abstract class SymbolTable extends api.Universe
 
   /** The phase which has given index as identifier. */
   val phaseWithId: Array[Phase]
+
+  /** Is this symbol table part of reflexive mirror? In this case
+   *  operations need to be made thread safe.
+   */
+  def inReflexiveMirror = false
 }

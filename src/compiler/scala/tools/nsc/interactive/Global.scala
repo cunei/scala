@@ -357,6 +357,7 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
             checkNoResponsesOutstanding()
 
             log.flush();
+            scheduler = new NoWorkScheduler
             throw ShutdownReq
           }
 
@@ -433,6 +434,7 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
   private def newRunnerThread(): Thread = {
     threadId += 1
     compileRunner = new PresentationCompilerThread(this, projectName)
+    compileRunner.setDaemon(true)
     compileRunner.start()
     compileRunner
   }
@@ -609,6 +611,15 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
         }
         response raise ex
         throw ex
+
+      case ex @ ShutdownReq =>
+        if (debugIDE) {
+          println("ShutdownReq thrown during response")
+          ex.printStackTrace()
+        }
+        response raise ex
+        throw ex
+
       case ex =>
         if (debugIDE) {
           println("exception thrown during response: "+ex)
@@ -1060,6 +1071,8 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
 
   implicit def addOnTypeError[T](x: => T): OnTypeError[T] = new OnTypeError(x)
 
+  // OnTypeError should still catch TypeError because of cyclic references,
+  // but DivergentImplicit shouldn't leak anymore here
   class OnTypeError[T](op: => T) {
     def onTypeError(alt: => T) = try {
       op

@@ -24,13 +24,32 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
   }
   def quotedName(name: Name): String = quotedName(name, false)
 
+  private def symNameInternal(tree: Tree, name: Name, decoded: Boolean): String = {
+    val sym = tree.symbol
+    if (sym != null && sym != NoSymbol) {
+      val prefix = if (sym.isMixinConstructor) "/*%s*/".format(quotedName(sym.owner.name, decoded)) else ""
+      var suffix = ""
+      if (settings.uniqid.value) suffix += ("#" + sym.id)
+      if (settings.Yshowsymkinds.value) suffix += ("#" + sym.abbreviatedKindString)
+      prefix + tree.symbol.decodedName + suffix
+    } else {
+      quotedName(name, decoded)
+    }
+  }
+
+  def decodedSymName(tree: Tree, name: Name) = symNameInternal(tree, name, true)
+  def symName(tree: Tree, name: Name) = symNameInternal(tree, name, false)
+
   /** Turns a path into a String, introducing backquotes
    *  as necessary.
    */
-  def backquotedPath(t: Tree): String = t match {
-    case Select(qual, name) => "%s.%s".format(backquotedPath(qual), quotedName(name))
-    case Ident(name)        => quotedName(name)
-    case _                  => t.toString
+  def backquotedPath(t: Tree): String = {
+    t match {
+      case Select(qual, name) if name.isTermName  => "%s.%s".format(backquotedPath(qual), symName(t, name))
+      case Select(qual, name) if name.isTypeName  => "%s#%s".format(backquotedPath(qual), symName(t, name))
+      case Ident(name)                            => symName(t, name)
+      case _                                      => t.toString
+    }
   }
 
   class TreePrinter(out: PrintWriter) extends super.TreePrinter {
@@ -118,18 +137,6 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
     }
     private def ifSym(tree: Tree, p: Symbol => Boolean) = symFn(tree, p, false)
 
-    private def symNameInternal(tree: Tree, name: Name, decoded: Boolean): String = {
-      def nameFn(sym: Symbol) = {
-        val prefix = if (sym.isMixinConstructor) "/*%s*/".format(quotedName(sym.owner.name, decoded)) else ""
-        val suffix = if (uniqueIds) "#"+sym.id else ""
-        prefix + tree.symbol.decodedName + suffix
-      }
-      symFn(tree, nameFn, quotedName(name, decoded))
-    }
-
-    def decodedSymName(tree: Tree, name: Name) = symNameInternal(tree, name, true)
-    def symName(tree: Tree, name: Name) = symNameInternal(tree, name, false)
-
     def printOpt(prefix: String, tree: Tree) {
       if (!tree.isEmpty) { print(prefix, tree) }
     }
@@ -168,7 +175,7 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
           printAnnotations(tree)
           printModifiers(tree, mods)
           val word =
-            if (mods.hasTraitFlag) "trait"
+            if (mods.isTrait) "trait"
             else if (ifSym(tree, _.isModuleClass)) "object"
             else "class"
 
@@ -235,6 +242,10 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
        case Template(parents, self, body) =>
           val currentOwner1 = currentOwner
           if (tree.symbol != NoSymbol) currentOwner = tree.symbol.owner
+//          if (parents exists isReferenceToAnyVal) {
+//            print("AnyVal")
+//          }
+//          else {
           printRow(parents, " with ")
           if (!body.isEmpty) {
             if (self.name != nme.WILDCARD) {
@@ -246,6 +257,7 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
             }
             printColumn(body, "", ";", "}")
           }
+//          }
           currentOwner = currentOwner1
 
         case Block(stats, expr) =>
@@ -290,6 +302,9 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
           if (uniqueIds && tree.symbol != null) print("#"+tree.symbol.id)
 
         case Assign(lhs, rhs) =>
+          print(lhs, " = ", rhs)
+
+        case AssignOrNamedArg(lhs, rhs) =>
           print(lhs, " = ", rhs)
 
         case If(cond, thenp, elsep) =>
@@ -397,7 +412,6 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
 //          case SelectFromArray(qualifier, name, _) =>
 //          print(qualifier); print(".<arr>"); print(symName(tree, name))
 
-
         case tree =>
           xprintTree(this, tree)
       }
@@ -413,13 +427,13 @@ trait TreePrinters extends api.TreePrinters { self: SymbolTable =>
       case name: Name =>
         print(quotedName(name))
       case arg =>
-        out.print(arg.toString)
+        out.print(if (arg == null) "null" else arg.toString)
     }
   }
 
   /** Hook for extensions */
   def xprintTree(treePrinter: TreePrinter, tree: Tree) =
-    treePrinter.print(tree.productPrefix+tree.productIterator.mkString("(", ", ", ")"))
+    treePrinter.print(tree.printingPrefix+tree.productIterator.mkString("(", ", ", ")"))
 
   def newTreePrinter(writer: PrintWriter): TreePrinter = new TreePrinter(writer)
   def newTreePrinter(stream: OutputStream): TreePrinter = newTreePrinter(new PrintWriter(stream))

@@ -20,7 +20,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
   thisFactory: ModelFactory with CommentFactory with TreeFactory =>
 
   import global._
-  import definitions.{ ObjectClass, ScalaObjectClass, RootPackage, EmptyPackage, NothingClass, AnyClass, AnyValClass, AnyRefClass }
+  import definitions.{ ObjectClass, RootPackage, EmptyPackage, NothingClass, AnyClass, AnyValClass, AnyRefClass }
 
   private var droppedPackages = 0
   def templatesCount = templatesCache.size - droppedPackages
@@ -42,7 +42,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     memberSym.isOmittablePrefix || (closestPackage(memberSym) == closestPackage(templateSym))
   }
 
-  private lazy val noSubclassCache = Set(AnyClass, AnyRefClass, ObjectClass, ScalaObjectClass)
+  private lazy val noSubclassCache = Set(AnyClass, AnyRefClass, ObjectClass)
 
   /**  */
   def makeModel: Option[Universe] = {
@@ -104,7 +104,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
         case mb: NonTemplateMemberEntity if (mb.useCaseOf.isDefined) =>
           mb.useCaseOf.get.inDefinitionTemplates
         case _ =>
-          if (inTpl == null) 
+          if (inTpl == null)
             makeRootPackage.toList
           else
             makeTemplate(sym.owner) :: (sym.allOverriddenSymbols map { inhSym => makeTemplate(inhSym.owner) })
@@ -123,14 +123,14 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
         else Public()
       }
     }
-    def flags = { 
+    def flags = {
       val fgs = mutable.ListBuffer.empty[Paragraph]
       if (sym.isImplicit) fgs += Paragraph(Text("implicit"))
       if (sym.isSealed) fgs += Paragraph(Text("sealed"))
       if (!sym.isTrait && (sym hasFlag Flags.ABSTRACT)) fgs += Paragraph(Text("abstract"))
       if (!sym.isTrait && (sym hasFlag Flags.DEFERRED)) fgs += Paragraph(Text("abstract"))
       if (!sym.isModule && (sym hasFlag Flags.FINAL)) fgs += Paragraph(Text("final"))
-      fgs.toList    	
+      fgs.toList
     }
     def deprecation =
       if (sym.isDeprecated)
@@ -217,13 +217,12 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     }
     def parentType = {
       if (sym.isPackage || sym == AnyClass) None else {
-        val tps =
-          (sym.tpe.parents filter (_ != ScalaObjectClass.tpe)) map { _.asSeenFrom(sym.thisType, sym) }
+        val tps = sym.tpe.parents map { _.asSeenFrom(sym.thisType, sym) }
         Some(makeType(RefinedType(tps, EmptyScope), inTpl))
       }
     }
     val linearization: List[(TemplateEntity, TypeEntity)] = {
-      sym.ancestors filter (_ != ScalaObjectClass) map { ancestor =>
+      sym.ancestors map { ancestor =>
         val typeEntity = makeType(sym.info.baseType(ancestor), this)
         val tmplEntity = makeTemplate(ancestor) match {
           case tmpl: DocTemplateImpl  => tmpl registerSubClass this ; tmpl
@@ -248,7 +247,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
 
     protected lazy val memberSyms =
        // Only this class's constructors are part of its members, inherited constructors are not.
-      sym.info.members.filter(s => localShouldDocument(s) && (!s.isConstructor || s.owner == sym))
+      sym.info.members.filter(s => localShouldDocument(s) && (!s.isConstructor || s.owner == sym) && !isPureBridge(sym) )
 
     val members       = memberSyms flatMap (makeMember(_, this))
     val templates     = members collect { case c: DocTemplateEntity => c }
@@ -316,7 +315,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
   def normalizeTemplate(aSym: Symbol): Symbol = aSym match {
     case null | EmptyPackage | NoSymbol =>
       normalizeTemplate(RootPackage)
-    case ScalaObjectClass | ObjectClass =>
+    case ObjectClass =>
       normalizeTemplate(AnyRefClass)
     case _ if aSym.isPackageObject =>
       aSym
@@ -475,7 +474,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
           if (bSym == definitions.Object_synchronized) {
             val cSymInfo = (bSym.info: @unchecked) match {
               case PolyType(ts, MethodType(List(bp), mt)) =>
-                val cp = bp.cloneSymbol.setInfo(appliedType(definitions.ByNameParamClass.typeConstructor, List(bp.info)))
+                val cp = bp.cloneSymbol.setInfo(definitions.byNameType(bp.info))
                 PolyType(ts, MethodType(List(cp), mt))
             }
             bSym.cloneSymbol.setInfo(cSymInfo)
@@ -621,7 +620,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
         case tp: TypeRef if definitions.isByNameParamType(tp) =>
           nameBuffer append "⇒ "
           appendType0(tp.args.head)
-        case tp: TypeRef if definitions.isTupleTypeOrSubtype(tp) =>
+        case tp: TypeRef if definitions.isTupleType(tp) =>
           val args = tp.normalize.typeArgs
           nameBuffer append '('
           appendTypes0(args, ", ")
@@ -706,4 +705,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
   def localShouldDocument(aSym: Symbol): Boolean = {
     !aSym.isPrivate && (aSym.isProtected || aSym.privateWithin == NoSymbol) && !aSym.isSynthetic
   }
+
+  /** Filter '@bridge' methods only if *they don't override non-bridge methods*. See SI-5373 for details */
+  def isPureBridge(sym: Symbol) = sym.isBridge && sym.allOverriddenSymbols.forall(_.isBridge)
 }

@@ -31,6 +31,7 @@ class StdReplVals(final val r: ILoop) extends ReplVals {
       power.unit("").asInstanceOf[analyzer.global.CompilationUnit]
     )
   )
+  def lastRequest = intp.lastRequest
 
   final lazy val replImplicits = new power.Implicits2 {
     import intp.global._
@@ -50,7 +51,7 @@ object ReplVals {
   def mkManifestToType[T <: Global](global: T) = {
     import global._
     import definitions._
-    
+
     /** We can't use definitions.manifestToType directly because we're passing
      *  it to map and the compiler refuses to perform eta expansion on a method
      *  with a dependent return type.  (Can this be relaxed?) To get around this
@@ -59,15 +60,17 @@ object ReplVals {
      */
     def manifestToType(m: OptManifest[_]): Global#Type =
       definitions.manifestToType(m)
-    
+
     class AppliedTypeFromManifests(sym: Symbol) {
       def apply[M](implicit m1: Manifest[M]): Type =
-        appliedType(sym.typeConstructor, List(m1) map (x => manifestToType(x).asInstanceOf[Type]))
+        if (sym eq NoSymbol) NoType
+        else appliedType(sym, manifestToType(m1).asInstanceOf[Type])
 
       def apply[M1, M2](implicit m1: Manifest[M1], m2: Manifest[M2]): Type =
-        appliedType(sym.typeConstructor, List(m1, m2) map (x => manifestToType(x).asInstanceOf[Type]))
+        if (sym eq NoSymbol) NoType
+        else appliedType(sym, manifestToType(m1).asInstanceOf[Type], manifestToType(m2).asInstanceOf[Type])
     }
-    
+
     (sym: Symbol) => new AppliedTypeFromManifests(sym)
   }
 }

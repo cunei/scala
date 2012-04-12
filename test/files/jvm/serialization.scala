@@ -287,6 +287,7 @@ object Test3_mutable {
     ArrayBuffer, ArrayBuilder, ArraySeq, ArrayStack, BitSet, DoubleLinkedList,
     HashMap, HashSet, History, LinkedList, ListBuffer, Publisher, Queue,
     Stack, StringBuilder, WrappedArray, TreeSet}
+  import scala.collection.concurrent.TrieMap
 
   // in alphabetic order
   try {
@@ -385,6 +386,11 @@ object Test3_mutable {
     val ts1 = TreeSet[Int]() ++= Array(1, 2, 3)
     val _ts1: TreeSet[Int] = read(write(ts1))
     check(ts1, _ts1)
+    
+    // concurrent.TrieMap
+    val ct1 = TrieMap[Int, String]() ++= Array(1 -> "one", 2 -> "two", 3 -> "three")
+    val _ct1: TrieMap[Int, String] = read(write(ct1))
+    check(ct1, _ct1)
   }
   catch {
     case e: Exception =>
@@ -607,6 +613,11 @@ object Test9_parallel {
     val mpm = mutable.ParHashMap(1 -> 2, 2 -> 4)
     val _mpm: mutable.ParHashMap[Int, Int] = read(write(mpm))
     check(mpm, _mpm)
+    
+    // mutable.ParTrieMap
+    val mpc = mutable.ParTrieMap(1 -> 2, 2 -> 4)
+    val _mpc: mutable.ParTrieMap[Int, Int] = read(write(mpc))
+    check(mpc, _mpc)
     
     // mutable.ParHashSet
     val mps = mutable.ParHashSet(1, 2, 3)
