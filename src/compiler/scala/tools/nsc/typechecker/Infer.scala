@@ -1104,7 +1104,9 @@ trait Infer {
           try {
             // debuglog("TVARS "+ (tvars map (_.constr)))
             // look at the argument types of the primary constructor corresponding to the pattern
-            val variances  = undetparams map varianceInType(ctorTp.paramTypes.headOption getOrElse ctorTp)
+            val variances  =
+              if (ctorTp.paramTypes.isEmpty) undetparams map varianceInType(ctorTp)
+              else undetparams map varianceInTypes(ctorTp.paramTypes)
             val targs      = solvedTypes(tvars, undetparams, variances, true, lubDepth(List(resTp, pt)))
             // checkBounds(tree, NoPrefix, NoSymbol, undetparams, targs, "inferred ")
             // no checkBounds here. If we enable it, test bug602 fails.
@@ -1276,7 +1278,8 @@ trait Infer {
             } else {
               for (arg <- args) {
                 if (sym == ArrayClass) check(arg, bound)
-                else if (arg.typeArgs.nonEmpty) ()   // avoid spurious warnings with higher-kinded types
+                else if (arg.typeArgs.nonEmpty) ()              // avoid spurious warnings with higher-kinded types
+                else if (sym == NonLocalReturnControlClass) ()  // no way to suppress unchecked warnings on try/catch
                 else arg match {
                   case TypeRef(_, sym, _) if isLocalBinding(sym) =>
                     ;
@@ -1611,6 +1614,13 @@ trait Infer {
         val saved = context.state
         var fallback = false
         context.setBufferErrors()
+        // We cache the current buffer because it is impossible to 
+        // distinguish errors that occurred before entering tryTwice
+        // and our first attempt in 'withImplicitsDisabled'. If the
+        // first attempt fails we try with implicits on *and* clean
+        // buffer but that would also flush any pre-tryTwice valid
+        // errors, hence some manual buffer tweaking is necessary.
+        val errorsToRestore = context.flushAndReturnBuffer()
         try {
           context.withImplicitsDisabled(infer(false))
           if (context.hasErrors) {
@@ -1624,8 +1634,10 @@ trait Infer {
           case ex: TypeError        => // recoverable cyclic references
             context.restoreState(saved)
             if (!fallback) infer(true) else ()
+        } finally {
+          context.restoreState(saved)
+          context.updateBuffer(errorsToRestore)
         }
-        context.restoreState(saved)
       }
       else infer(true)
     }

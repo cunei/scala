@@ -13,8 +13,7 @@ import mutable.ListBuffer
 import Flags._
 import scala.util.control.ControlThrowable
 import scala.annotation.tailrec
-import util.Statistics._
-import language.postfixOps
+import util.Statistics
 
 /* A standard type pattern match:
   case ErrorType =>
@@ -73,9 +72,7 @@ import language.postfixOps
 
 trait Types extends api.Types { self: SymbolTable =>
   import definitions._
-
-  //statistics
-  def uniqueTypeCount = if (uniques == null) 0 else uniques.size
+  import TypesStats._
 
   private var explainSwitch = false
   private final val emptySymbolSet = immutable.Set.empty[Symbol]
@@ -571,6 +568,24 @@ trait Types extends api.Types { self: SymbolTable =>
     /** Expands type aliases. */
     def dealias = this
 
+    def etaExpand: Type = this
+
+    /** Performs a single step of beta-reduction on types.
+     *  Given:
+     *
+     *    type C[T] = B[T]
+     *    type B[T] = A
+     *    class A
+     *
+     *  The following will happen after `betaReduce` is invoked:
+     *    TypeRef(pre, <C>, List(Int)) is replaced by
+     *    TypeRef(pre, <B>, List(Int))
+     *
+     *  Unlike `dealias`, which recursively applies beta reduction, until it's stuck,
+     *  `betaReduce` performs exactly one step and then returns.
+     */
+    def betaReduce: Type = this
+
     /** For a classtype or refined type, its defined or declared members;
      *  inherited by subtypes and typerefs.
      *  The empty scope for all other types.
@@ -681,8 +696,8 @@ trait Types extends api.Types { self: SymbolTable =>
       if (isTrivial || phase.erasedTypes && pre.typeSymbol != ArrayClass) this
       else {
 //        scala.tools.nsc.util.trace.when(pre.isInstanceOf[ExistentialType])("X "+this+".asSeenfrom("+pre+","+clazz+" = ") {
-        incCounter(asSeenFromCount)
-        val start = startTimer(asSeenFromNanos)
+        Statistics.incCounter(asSeenFromCount)
+        val start = Statistics.pushTimer(typeOpsStack, asSeenFromNanos)
         val m = new AsSeenFromMap(pre.normalize, clazz)
         val tp = m apply this
         val tp1 = existentialAbstraction(m.capturedParams, tp)
@@ -690,7 +705,7 @@ trait Types extends api.Types { self: SymbolTable =>
           if (m.capturedSkolems.isEmpty) tp1
           else deriveType(m.capturedSkolems, _.cloneSymbol setFlag CAPTURED)(tp1)
 
-        stopTimer(asSeenFromNanos, start)
+        Statistics.popTimer(typeOpsStack, start)
         result
       }
     }
@@ -828,26 +843,26 @@ trait Types extends api.Types { self: SymbolTable =>
     }
 
     def stat_<:<(that: Type): Boolean = {
-      incCounter(subtypeCount)
-      val start = startTimer(subtypeNanos)
+      Statistics.incCounter(subtypeCount)
+      val start = Statistics.pushTimer(typeOpsStack, subtypeNanos)
       val result =
         (this eq that) ||
         (if (explainSwitch) explain("<:", isSubType, this, that)
          else isSubType(this, that, AnyDepth))
-      stopTimer(subtypeNanos, start)
+      Statistics.popTimer(typeOpsStack, start)
       result
     }
 
     /** Is this type a weak subtype of that type? True also for numeric types, i.e. Int weak_<:< Long.
      */
     def weak_<:<(that: Type): Boolean = {
-      incCounter(subtypeCount)
-      val start = startTimer(subtypeNanos)
+      Statistics.incCounter(subtypeCount)
+      val start = Statistics.pushTimer(typeOpsStack, subtypeNanos)
       val result =
         ((this eq that) ||
          (if (explainSwitch) explain("weak_<:", isWeakSubType, this, that)
           else isWeakSubType(this, that)))
-      stopTimer(subtypeNanos, start)
+      Statistics.popTimer(typeOpsStack, start)
       result
     }
 
@@ -1020,8 +1035,8 @@ trait Types extends api.Types { self: SymbolTable =>
       // See (t0851) for a situation where this happens.
       val suspension: List[TypeVar] = if (this.isGround) null else suspendTypeVarsInType(this)
 
-      incCounter(findMemberCount)
-      val start = startTimer(findMemberNanos)
+      Statistics.incCounter(findMemberCount)
+      val start = Statistics.pushTimer(typeOpsStack, findMemberNanos)
 
       //Console.println("find member " + name.decode + " in " + this + ":" + this.baseClasses)//DEBUG
       var members: Scope = null
@@ -1048,7 +1063,7 @@ trait Types extends api.Types { self: SymbolTable =>
                    !sym.isPrivateLocal ||
                    (bcs0.head.hasTransOwner(bcs.head)))) {
                 if (name.isTypeName || stableOnly && sym.isStable) {
-                  stopTimer(findMemberNanos, start)
+                  Statistics.popTimer(typeOpsStack, start)
                   if (suspension ne null) suspension foreach (_.suspended = false)
                   return sym
                 } else if (member == NoSymbol) {
@@ -1094,13 +1109,13 @@ trait Types extends api.Types { self: SymbolTable =>
         } // while (!bcs.isEmpty)
         excluded = excludedFlags
       } // while (continue)
-      stopTimer(findMemberNanos, start)
+      Statistics.popTimer(typeOpsStack, start)
       if (suspension ne null) suspension foreach (_.suspended = false)
       if (members eq null) {
-        if (member == NoSymbol) incCounter(noMemberCount)
+        if (member == NoSymbol) Statistics.incCounter(noMemberCount)
         member
       } else {
-        incCounter(multMemberCount)
+        Statistics.incCounter(multMemberCount)
         baseClasses.head.newOverloaded(this, members.toList)
       }
     }
@@ -1185,7 +1200,7 @@ trait Types extends api.Types { self: SymbolTable =>
     override def isVolatile = underlying.isVolatile
     override def widen: Type = underlying.widen
     override def baseTypeSeq: BaseTypeSeq = {
-      incCounter(singletonBaseTypeSeqCount)
+      Statistics.incCounter(singletonBaseTypeSeqCount)
       underlying.baseTypeSeq prepend this
     }
     override def isHigherKinded = false // singleton type classifies objects, thus must be kind *
@@ -1536,12 +1551,18 @@ trait Types extends api.Types { self: SymbolTable =>
           val bts = copyRefinedType(tpe.asInstanceOf[RefinedType], tpe.parents map varToParam, varToParam mapOver tpe.decls).baseTypeSeq
           tpe.baseTypeSeqCache = bts lateMap paramToVar
         } else {
-          incCounter(compoundBaseTypeSeqCount)
-          tpe.baseTypeSeqCache = undetBaseTypeSeq
-          tpe.baseTypeSeqCache = if (tpe.typeSymbol.isRefinementClass)
-            tpe.memo(compoundBaseTypeSeq(tpe))(_.baseTypeSeq updateHead tpe.typeSymbol.tpe)
-          else
-            compoundBaseTypeSeq(tpe)
+          Statistics.incCounter(compoundBaseTypeSeqCount)
+          val start = Statistics.pushTimer(typeOpsStack, baseTypeSeqNanos)
+          try {
+            tpe.baseTypeSeqCache = undetBaseTypeSeq
+            tpe.baseTypeSeqCache =
+              if (tpe.typeSymbol.isRefinementClass)
+                tpe.memo(compoundBaseTypeSeq(tpe))(_.baseTypeSeq updateHead tpe.typeSymbol.tpe)
+              else
+                compoundBaseTypeSeq(tpe)
+          } finally {
+            Statistics.popTimer(typeOpsStack, start)
+          }
           // [Martin] suppressing memo-ization solves the problem with "same type after erasure" errors
           // when compiling with
           // scalac scala.collection.IterableViewLike.scala scala.collection.IterableLike.scala
@@ -2107,7 +2128,7 @@ trait Types extends api.Types { self: SymbolTable =>
     //
     // this crashes pos/depmet_implicit_tpbetareduce.scala
     // appliedType(sym.info, typeArgs).asSeenFrom(pre, sym.owner)
-    def betaReduce = transform(sym.info.resultType)
+    override def betaReduce = transform(sym.info.resultType)
 
     // #3731: return sym1 for which holds: pre bound sym.name to sym and
     // pre1 now binds sym.name to sym1, conceptually exactly the same
@@ -2218,7 +2239,7 @@ trait Types extends api.Types { self: SymbolTable =>
       || pre.isGround && args.forall(_.isGround)
     )
 
-    def etaExpand: Type = {
+    override def etaExpand: Type = {
       // must initialise symbol, see test/files/pos/ticket0137.scala
       val tpars = initializedTypeParams
       if (tpars.isEmpty) this
@@ -2392,9 +2413,14 @@ trait Types extends api.Types { self: SymbolTable =>
     if (period != currentPeriod) {
       tpe.baseTypeSeqPeriod = currentPeriod
       if (!isValidForBaseClasses(period)) {
-        incCounter(typerefBaseTypeSeqCount)
-        tpe.baseTypeSeqCache = undetBaseTypeSeq
-        tpe.baseTypeSeqCache = tpe.baseTypeSeqImpl
+        Statistics.incCounter(typerefBaseTypeSeqCount)
+        val start = Statistics.pushTimer(typeOpsStack, baseTypeSeqNanos)
+        try {
+          tpe.baseTypeSeqCache = undetBaseTypeSeq
+          tpe.baseTypeSeqCache = tpe.baseTypeSeqImpl
+        } finally {
+          Statistics.popTimer(typeOpsStack, start)
+        }
       }
     }
     if (tpe.baseTypeSeqCache == undetBaseTypeSeq)
@@ -3702,7 +3728,7 @@ trait Types extends api.Types { self: SymbolTable =>
   private var uniqueRunId = NoRunId
 
   protected def unique[T <: Type](tp: T): T = {
-    incCounter(rawTypeCount)
+    Statistics.incCounter(rawTypeCount)
     if (uniqueRunId != currentRunId) {
       uniques = util.HashSet[Type]("uniques", initialUniquesCapacity)
       uniqueRunId = currentRunId
@@ -4267,18 +4293,6 @@ trait Types extends api.Types { self: SymbolTable =>
           qvar
       }).tpe
 
-    /** Return `pre.baseType(clazz)`, or if that's `NoType` and `clazz` is a refinement, `pre` itself.
-     *  See bug397.scala for an example where the second alternative is needed.
-     *  The problem is that when forming the base type sequence of an abstract type,
-     *  any refinements in the base type list might be regenerated, and thus acquire
-     *  new class symbols. However, since refinements always have non-interesting prefixes
-     *  it looks OK to me to just take the prefix directly. */
-    def base(pre: Type, clazz: Symbol) = {
-      val b = pre.baseType(clazz)
-      if (b == NoType && clazz.isRefinementClass) pre
-      else b
-    }
-
     def apply(tp: Type): Type =
       if ((pre eq NoType) || (pre eq NoPrefix) || !clazz.isClass) tp
       else tp match {
@@ -4299,7 +4313,7 @@ trait Types extends api.Types { self: SymbolTable =>
                 pre1
               }
             } else {
-              toPrefix(base(pre, clazz).prefix, clazz.owner)
+              toPrefix(pre.baseType(clazz).prefix, clazz.owner)
             }
           toPrefix(pre, clazz)
         case SingleType(pre, sym) =>
@@ -4379,7 +4393,7 @@ trait Types extends api.Types { self: SymbolTable =>
                   case t =>
                     throwError
                 }
-              } else toInstance(base(pre, clazz).prefix, clazz.owner)
+              } else toInstance(pre.baseType(clazz).prefix, clazz.owner)
             }
           toInstance(pre, clazz)
         case _ =>
@@ -5099,12 +5113,12 @@ trait Types extends api.Types { self: SymbolTable =>
       false
 
   private def equalSymsAndPrefixes(sym1: Symbol, pre1: Type, sym2: Symbol, pre2: Type): Boolean =
-    if (sym1 == sym2) sym1.hasPackageFlag || phase.erasedTypes || pre1 =:= pre2
+    if (sym1 == sym2) sym1.hasPackageFlag || sym1.owner.hasPackageFlag || phase.erasedTypes || pre1 =:= pre2
     else (sym1.name == sym2.name) && isUnifiable(pre1, pre2)
 
   /** Do `tp1` and `tp2` denote equivalent types? */
   def isSameType(tp1: Type, tp2: Type): Boolean = try {
-    incCounter(sametypeCount)
+    Statistics.incCounter(sametypeCount)
     subsametypeRecursions += 1
     undoLog undoUnless {
       isSameType1(tp1, tp2)
@@ -5586,7 +5600,7 @@ trait Types extends api.Types { self: SymbolTable =>
             val sym2 = tr2.sym
             val pre1 = tr1.pre
             val pre2 = tr2.pre
-            (((if (sym1 == sym2) phase.erasedTypes || isSubType(pre1, pre2, depth)
+            (((if (sym1 == sym2) phase.erasedTypes || sym1.owner.hasPackageFlag || isSubType(pre1, pre2, depth)
                else (sym1.name == sym2.name && !sym1.isModuleClass && !sym2.isModuleClass &&
                      (isUnifiable(pre1, pre2) ||
                       isSameSpecializedSkolem(sym1, sym2, pre1, pre2) ||
@@ -6308,14 +6322,14 @@ trait Types extends api.Types { self: SymbolTable =>
     case List() => NothingClass.tpe
     case List(t) => t
     case _ =>
-      incCounter(lubCount)
-      val start = startTimer(lubNanos)
+      Statistics.incCounter(lubCount)
+      val start = Statistics.pushTimer(typeOpsStack, lubNanos)
       try {
          lub(ts, lubDepth(ts))
       } finally {
         lubResults.clear()
         glbResults.clear()
-        stopTimer(lubNanos, start)
+        Statistics.popTimer(typeOpsStack, start)
       }
   }
 
@@ -6431,7 +6445,7 @@ trait Types extends api.Types { self: SymbolTable =>
       indent = indent + "  "
       assert(indent.length <= 100)
     }
-    incCounter(nestedLubCount)
+    Statistics.incCounter(nestedLubCount)
     val res = lub0(ts)
     if (printLubs) {
       indent = indent stripSuffix "  "
@@ -6456,14 +6470,14 @@ trait Types extends api.Types { self: SymbolTable =>
     case List() => AnyClass.tpe
     case List(t) => t
     case ts0 =>
-      incCounter(lubCount)
-      val start = startTimer(lubNanos)
+      Statistics.incCounter(lubCount)
+      val start = Statistics.pushTimer(typeOpsStack, lubNanos)
       try {
         glbNorm(ts0, lubDepth(ts0))
       } finally {
         lubResults.clear()
         glbResults.clear()
-        stopTimer(lubNanos, start)
+        Statistics.popTimer(typeOpsStack, start)
      }
   }
 
@@ -6578,7 +6592,7 @@ trait Types extends api.Types { self: SymbolTable =>
     }
     // if (settings.debug.value) { println(indent + "glb of " + ts + " at depth "+depth); indent = indent + "  " } //DEBUG
 
-    incCounter(nestedLubCount)
+    Statistics.incCounter(nestedLubCount)
     val res = glb0(ts)
 
     // if (settings.debug.value) { indent = indent.substring(0, indent.length() - 2); log(indent + "glb of " + ts + " is " + res) }//DEBUG
@@ -6871,4 +6885,29 @@ trait Types extends api.Types { self: SymbolTable =>
   implicit val TypeBoundsTag = ClassTag[TypeBounds](classOf[TypeBounds])
   implicit val TypeRefTag = ClassTag[TypeRef](classOf[TypeRef])
   implicit val TypeTagg = ClassTag[Type](classOf[Type])
+
+  Statistics.newView("#unique types") { if (uniques == null) 0 else uniques.size }
+}
+
+object TypesStats {
+  import BaseTypeSeqsStats._
+  val rawTypeCount        = Statistics.newCounter   ("#raw type creations")
+  val asSeenFromCount     = Statistics.newCounter   ("#asSeenFrom ops")
+  val subtypeCount        = Statistics.newCounter   ("#subtype ops")
+  val sametypeCount       = Statistics.newCounter   ("#sametype ops")
+  val lubCount            = Statistics.newCounter   ("#toplevel lubs/glbs")
+  val nestedLubCount      = Statistics.newCounter   ("#all lubs/glbs")
+  val findMemberCount     = Statistics.newCounter   ("#findMember ops")
+  val noMemberCount       = Statistics.newSubCounter("  of which not found", findMemberCount)
+  val multMemberCount     = Statistics.newSubCounter("  of which multiple overloaded", findMemberCount)
+  val typerNanos          = Statistics.newTimer     ("time spent typechecking", "typer")
+  val lubNanos            = Statistics.newStackableTimer("time spent in lubs", typerNanos)
+  val subtypeNanos        = Statistics.newStackableTimer("time spent in <:<", typerNanos)
+  val findMemberNanos     = Statistics.newStackableTimer("time spent in findmember", typerNanos)
+  val asSeenFromNanos     = Statistics.newStackableTimer("time spent in asSeenFrom", typerNanos)
+  val baseTypeSeqNanos    = Statistics.newStackableTimer("time spent in baseTypeSeq", typerNanos)
+  val compoundBaseTypeSeqCount = Statistics.newSubCounter("  of which for compound types", baseTypeSeqCount)
+  val typerefBaseTypeSeqCount = Statistics.newSubCounter("  of which for typerefs", baseTypeSeqCount)
+  val singletonBaseTypeSeqCount = Statistics.newSubCounter("  of which for singletons", baseTypeSeqCount)
+  val typeOpsStack = Statistics.newTimerStack()
 }

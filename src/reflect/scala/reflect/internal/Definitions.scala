@@ -35,7 +35,6 @@ trait Definitions extends api.StandardDefinitions {
   lazy val AnyRefTpe  = definitions.AnyRefClass.asType
   lazy val NothingTpe = definitions.NothingClass.asType
   lazy val NullTpe    = definitions.NullClass.asType
-  lazy val StringTpe  = definitions.StringClass.asType
 
   /** Since both the value parameter types and the result type may
    *  require access to the type parameter symbols, we model polymorphic
@@ -179,7 +178,7 @@ trait Definitions extends api.StandardDefinitions {
     val EmptyPackage: ModuleSymbol = rootMirror.EmptyPackage
 
     @deprecated("Moved to rootMirror.EmptyPackageClass", "2.10.0")
-    val EmptyPackageClass: ClassSymbol = rootMirror.RootClass
+    val EmptyPackageClass: ClassSymbol = rootMirror.EmptyPackageClass
 
     // It becomes tricky to create dedicated objects for other symbols because
     // of initialization order issues.
@@ -468,10 +467,10 @@ trait Definitions extends api.StandardDefinitions {
          def ReflectRuntimeUniverse      = if (ReflectRuntimePackage != NoSymbol) getMemberValue(ReflectRuntimePackage, nme.universe) else NoSymbol
          def ReflectRuntimeCurrentMirror = if (ReflectRuntimePackage != NoSymbol) getMemberMethod(ReflectRuntimePackage, nme.currentMirror) else NoSymbol
 
-    lazy val PartialManifestClass  = requiredClass[scala.reflect.ClassManifest[_]]
-    lazy val PartialManifestModule = requiredModule[scala.reflect.ClassManifest.type]
+    lazy val PartialManifestClass  = getMemberType(ReflectPackage, tpnme.ClassManifest)
+    lazy val PartialManifestModule = requiredModule[scala.reflect.ClassManifestFactory.type]
     lazy val FullManifestClass     = requiredClass[scala.reflect.Manifest[_]]
-    lazy val FullManifestModule    = requiredModule[scala.reflect.Manifest.type]
+    lazy val FullManifestModule    = requiredModule[scala.reflect.ManifestFactory.type]
     lazy val OptManifestClass      = requiredClass[scala.reflect.OptManifest[_]]
     lazy val NoManifest            = requiredModule[scala.reflect.NoManifest.type]
     lazy val SourceLocationClass   = requiredClass[scala.reflect.SourceLocation]
@@ -1144,6 +1143,39 @@ trait Definitions extends api.StandardDefinitions {
 
     /** Is symbol a phantom class for which no runtime representation exists? */
     lazy val isPhantomClass = Set[Symbol](AnyClass, AnyValClass, NullClass, NothingClass)
+    lazy val magicSymbols = List(
+      AnnotationDefaultAttr, // #2264
+      RepeatedParamClass,
+      JavaRepeatedParamClass,
+      ByNameParamClass,
+      AnyClass,
+      AnyRefClass,
+      AnyValClass,
+      NullClass,
+      NothingClass,
+      SingletonClass,
+      EqualsPatternClass,
+      Any_==,
+      Any_!=,
+      Any_equals,
+      Any_hashCode,
+      Any_toString,
+      Any_getClass,
+      Any_isInstanceOf,
+      Any_asInstanceOf,
+      Any_##,
+      Object_eq,
+      Object_ne,
+      Object_==,
+      Object_!=,
+      Object_##,
+      Object_synchronized,
+      Object_isInstanceOf,
+      Object_asInstanceOf,
+      String_+,
+      ComparableClass,
+      JavaSerializableClass
+    )
 
     /** Is the symbol that of a parent which is added during parsing? */
     lazy val isPossibleSyntheticParent = ProductClass.toSet[Symbol] + ProductRootClass + SerializableClass
@@ -1207,41 +1239,7 @@ trait Definitions extends api.StandardDefinitions {
 
     def init() {
       if (isInitialized) return
-
-      val forced = List( // force initialization of every symbol that is entered as a side effect
-        AnnotationDefaultAttr, // #2264
-        RepeatedParamClass,
-        JavaRepeatedParamClass,
-        ByNameParamClass,
-        AnyClass,
-        AnyRefClass,
-        AnyValClass,
-        NullClass,
-        NothingClass,
-        SingletonClass,
-        EqualsPatternClass,
-        Any_==,
-        Any_!=,
-        Any_equals,
-        Any_hashCode,
-        Any_toString,
-        Any_getClass,
-        Any_isInstanceOf,
-        Any_asInstanceOf,
-        Any_##,
-        Object_eq,
-        Object_ne,
-        Object_==,
-        Object_!=,
-        Object_##,
-        Object_synchronized,
-        Object_isInstanceOf,
-        Object_asInstanceOf,
-        String_+,
-        ComparableClass,
-        JavaSerializableClass
-      )
-
+      val forced = magicSymbols // force initialization of every symbol that is entered as a side effect
       isInitialized = true
     } //init
 
