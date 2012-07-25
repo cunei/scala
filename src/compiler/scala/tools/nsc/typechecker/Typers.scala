@@ -3161,6 +3161,8 @@ trait Typers extends Modes with Adaptations with Tags {
       }
 
       // setType null is necessary so that ref will be stabilized; see bug 881
+      // note that `arg` (<unapply-selector>) may be referenced in `fun1.tpe`
+      // the pattern matcher deals with this in ExtractorCallRegular -- SI-6130
       val fun1 = typedPos(fun.pos)(Apply(Select(fun setType null, unapp), List(arg)))
 
       if (fun1.tpe.isErroneous) duplErrTree
@@ -3171,7 +3173,9 @@ trait Typers extends Modes with Adaptations with Tags {
         val (formals, formalsExpanded) = extractorFormalTypes(resTp, nbSubPats, fun1.symbol)
         if (formals == null) duplErrorTree(WrongNumberArgsPatternError(tree, fun))
         else {
-          val args1 = typedArgs(args, mode, formals, formalsExpanded)
+          // SI-6130 -- need to widen expected types for sub-patterns since the extractor's result type
+          // may contain singleton types that depend on `arg` (<unapply-selector>)
+          val args1 = typedArgs(args, mode, formals, formalsExpanded mapConserve (_.widen))
           // This used to be the following (failing) assert:
           //   assert(isFullyDefined(pt), tree+" ==> "+UnApply(fun1, args1)+", pt = "+pt)
           // I modified as follows.  See SI-1048.

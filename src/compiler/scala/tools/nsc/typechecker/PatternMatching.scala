@@ -385,7 +385,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
         case UnApply(unfun, args) =>
           // TODO: check unargs == args
           // patmatDebug("unfun: "+ (unfun.tpe, unfun.symbol.ownerChain, unfun.symbol.info, patBinder.info))
-          translateExtractorPattern(ExtractorCall(unfun, args))
+          translateExtractorPattern(ExtractorCall(patBinder, unfun, args))
 
         /** A constructor pattern is of the form c(p1, ..., pn) where n ≥ 0.
           It consists of a stable identifier c, followed by element patterns p1, ..., pn.
@@ -484,7 +484,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     object ExtractorCall {
-      def apply(unfun: Tree, args: List[Tree]): ExtractorCall = new ExtractorCallRegular(unfun, args)
+      def apply(prevBinder: Symbol, unfun: Tree, args: List[Tree]): ExtractorCall = new ExtractorCallRegular(prevBinder, unfun, args)
 
       def fromCaseClass(fun: Tree, args: List[Tree]): Option[ExtractorCall] =  Some(new ExtractorCallProd(fun, args))
 
@@ -534,7 +534,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
             }
           } finally context.undetparams = savedUndets
 
-          Some(this(extractorCall, args)) // TODO: simplify spliceApply?
+          Some(this(NoSymbol, extractorCall, args)) // TODO: simplify spliceApply?
         }
       }
     }
@@ -694,20 +694,23 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
       override def toString(): String = "case class "+ (if (constructorTp eq null) fun else paramType.typeSymbol) +" with arguments "+ args
     }
 
-    class ExtractorCallRegular(extractorCallIncludingDummy: Tree, args: List[Tree]) extends ExtractorCall(args) {
+    class ExtractorCallRegular(prevBinder: Symbol, extractorCallIncludingDummy: Tree, args: List[Tree]) extends ExtractorCall(args) {
       private lazy val Some(Apply(extractorCall, _)) = extractorCallIncludingDummy.find{ case Apply(_, List(Ident(nme.SELECTOR_DUMMY))) => true case _ => false }
 
       def tpe        = extractorCall.tpe
       def isTyped    = (tpe ne NoType) && extractorCall.isTyped && (resultInMonad ne ErrorType)
       def paramType  = tpe.paramTypes.head
-      def resultType = tpe.finalResultType
       def isSeq      = extractorCall.symbol.name == nme.unapplySeq
+
+      // SI-6130 -- replace <unapply-selector> references in result type by the actual binder we're passing in
+      def resultType(b: Symbol) = tpe.resultType(List(SingleType(NoPrefix, b))).finalResultType
+      lazy val booleanExtractor = resultType(prevBinder).typeSymbol == BooleanClass
 
       def treeMaker(patBinderOrCasted: Symbol, pos: Position): TreeMaker = {
         // the extractor call (applied to the binder bound by the flatMap corresponding to the previous (i.e., enclosing/outer) pattern)
         val extractorApply = atPos(pos)(spliceApply(patBinderOrCasted))
         val binder         = freshSym(pos, pureType(resultInMonad)) // can't simplify this when subPatBinders.isEmpty, since UnitClass.tpe is definitely wrong when isSeq, and resultInMonad should always be correct since it comes directly from the extractor's result type
-        ExtractorTreeMaker(extractorApply, lengthGuard(binder), binder)(subPatBinders, subPatRefs(binder), resultType.typeSymbol == BooleanClass, checkedLength, patBinderOrCasted)
+        ExtractorTreeMaker(extractorApply, lengthGuard(binder), binder)(subPatBinders, subPatRefs(binder), booleanExtractor, checkedLength, patBinderOrCasted)
       }
 
       override protected def seqTree(binder: Symbol): Tree =
@@ -724,7 +727,8 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
         object splice extends Transformer {
           override def transform(t: Tree) = t match {
             case Apply(x, List(Ident(nme.SELECTOR_DUMMY))) =>
-              treeCopy.Apply(t, x, List(CODE.REF(binder)))
+              // SI-6130 -- replace <unapply-selector> references in result type by the actual binder we're passing in
+              treeCopy.Apply(t, x, List(CODE.REF(binder))) setType resultType(binder)
             case _ => super.transform(t)
           }
         }
@@ -734,8 +738,8 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
       // what's the extractor's result type in the monad?
       // turn an extractor's result type into something `monadTypeToSubPatTypesAndRefs` understands
       protected lazy val resultInMonad: Type = if(!hasLength(tpe.paramTypes, 1)) ErrorType else {
-        if (resultType.typeSymbol == BooleanClass) UnitClass.tpe
-        else matchMonadResult(resultType)
+        if (booleanExtractor) UnitClass.tpe
+        else matchMonadResult(resultType(prevBinder))
       }
 
       protected lazy val rawSubPatTypes =
