@@ -1992,20 +1992,24 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
     def Lit(sym: Sym, pos: Boolean = true): Lit
 
     // throws an AnalysisBudget.Exception when the prop results in a CNF that's too big
+    // TODO: be smarter/more efficient about this
     def eqFreePropToSolvable(p: Prop): Formula = {
-      // TODO: for now, reusing the normalization from DPLL
+      def negationNormalFormNot(p: Prop): Prop = p match {
+        case And(a, b) => Or(negationNormalFormNot(a), negationNormalFormNot(b))
+        case Or(a, b)  => And(negationNormalFormNot(a), negationNormalFormNot(b))
+        case Not(p)    => negationNormalForm(p)
+        case True      => False
+        case False     => True
+        case s: Sym    => Not(s)
+      }
+
       def negationNormalForm(p: Prop): Prop = p match {
         case And(a, b)      => And(negationNormalForm(a), negationNormalForm(b))
         case Or(a, b)       => Or(negationNormalForm(a), negationNormalForm(b))
-        case Not(And(a, b)) => negationNormalForm(Or(Not(a), Not(b)))
-        case Not(Or(a, b))  => negationNormalForm(And(Not(a), Not(b)))
-        case Not(Not(p))    => negationNormalForm(p)
-        case Not(True)      => False
-        case Not(False)     => True
+        case Not(negated)   => negationNormalFormNot(negated)
         case True
            | False
-           | (_ : Sym)
-           | Not(_ : Sym)   => p
+           | (_ : Sym)      => p
       }
 
       val TrueF          = formula()
