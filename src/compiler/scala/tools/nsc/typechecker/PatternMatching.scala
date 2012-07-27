@@ -2268,15 +2268,17 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
          * i.e., when S <:< T we assume x.isInstanceOf[S] implies x.isInstanceOf[T]
          * unfortunately this is not true in general (see e.g. SI-6022)
          */
-        def implies(lower: Const, upper: Const): Boolean =
-          // values and null
+        def implies(lower: Const, upper: Const): Boolean = { val r =
+          // fast track for values and null (values may also require subtype check when prefixes are subtypes -- see below)
             lower == upper ||
           // type implication
-            (lower != NullConst && !upper.isValue &&
-             instanceOfTpImplies(if (lower.isValue) lower.wideTp else lower.tp, upper.tp))
+            (lower != NullConst &&
+             instanceOfTpImplies(if (lower.isValue) lower.wideTp else lower.tp, upper.tp) || (!upper.isValue && instanceOfTpImplies(lower.wideTp, upper.tp)))
 
-          // if(r) patmatDebug("implies    : "+(lower, lower.tp, upper, upper.tp))
-          // else  patmatDebug("NOT implies: "+(lower, upper))
+          if(r) patmatDebug("implies    : "+(lower, lower.tp, upper, upper.tp))
+          else  patmatDebug("NOT implies: "+(lower, upper))
+          r
+        }
 
 
         /** does V = C preclude V having value `other`?
@@ -2289,11 +2291,13 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
 
          (3) for types we could try to do something fancy, but be conservative and just say no
          */
-        def excludes(a: Const, b: Const): Boolean =
-          a != b && ((a == NullConst || b == NullConst) || (a.isValue && b.isValue))
+        def excludes(a: Const, b: Const): Boolean = { val r =
+          a != b && ((a == NullConst || b == NullConst) || (a.isValue && b.isValue && !implies(a, b) && !implies(b, a)))
 
-          // if(r) patmatDebug("excludes    : "+(a, a.tp, b, b.tp))
-          // else  patmatDebug("NOT excludes: "+(a, b))
+          if(r) patmatDebug("excludes    : "+(a, a.tp, b, b.tp))
+          else  patmatDebug("NOT excludes: "+(a, b))
+          r
+        }
 
 /*
 [ HALF BAKED FANCINESS: //!equalitySyms.exists(common => implies(common.const, a) && implies(common.const, b)))
@@ -2379,7 +2383,9 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
       private val uniques = new collection.mutable.HashMap[Type, Const]
       private[SymbolicMatchAnalysis] def unique(tp: Type, mkFresh: => Const): Const =
         uniques.get(tp).getOrElse(
-          uniques.find {case (oldTp, oldC) => oldTp =:= tp} match {
+          // types for consts may have different prefixes --> it's enough they point to the same symbol (SI-6146)
+          // before: oldTp =:= tp
+          uniques.find {case (oldTp, oldC) => oldTp =:= tp } match {
             case Some((_, c)) =>
               patmatDebug("unique const: "+ (tp, c))
               c
@@ -2497,6 +2503,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
       assert(!(tp =:= NullTp)) // TODO: assert(!tp.isStable)
       private[this] val id: Int = Const.nextValueId
       def isValue = true
+      // override def toString = _toString +": "+ tp
     }
 
     lazy val NullTp = ConstantType(Constant(null))
@@ -2622,31 +2629,57 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
         case sym if !sym.isSealed || isPrimitiveValueClass(sym) =>
           patmatDebug("enum unsealed "+ (tp, sym, sym.isSealed, isPrimitiveValueClass(sym)))
           None
-        case sym =>
+        case superSym =>
           val subclasses = (
-            sym.sealedDescendants.toList sortBy (_.sealedSortName)
+            superSym.sealedDescendants.toList sortBy (_.sealedSortName)
             // symbols which are both sealed and abstract need not be covered themselves, because
             // all of their children must be and they cannot otherwise be created.
             filterNot (x => x.isSealed && x.isAbstractClass && !isPrimitiveValueClass(x)))
-          patmatDebug("enum sealed -- subclasses: "+ (sym, subclasses))
+          patmatDebug("enum sealed -- subclasses: "+ (superSym, subclasses))
 
-          val tpApprox = typer.infer.approximateAbstracts(tp)
+          import typer.infer.approximateAbstracts
+          val tpApprox = approximateAbstracts(tp)
           val pre = tpApprox.prefix
+
+          def widenDeep(tp: Type): Type =
+            if (tp.typeSymbol.isPackageClass) tp
+            else {
+              val widened = tp match {
+                case TypeRef(pre, sym, args) => typeRef(widenDeep(pre), sym, args)
+                case SingleType(pre, sym) => widenDeep(tp.widen)
+                case _ => tp
+              }
+              // if (tp != widened) patmatDebug("widenPrefix: "+(debugString(tp), debugString(widened), tp =:= widened, tp.getClass, widened.getClass))
+              widened
+            }
+
           // valid subtypes are turned into checkable types, as we are entering the realm of the dynamic
           val validSubTypes = (subclasses flatMap {sym =>
               // have to filter out children which cannot match: see ticket #3683 for an example
               // compare to the fully known type `tp` (modulo abstract types),
               // so that we can rule out stuff like: sealed trait X[T]; class XInt extends X[Int] --> XInt not valid when enumerating X[String]
-              // however, must approximate abstract types in
-              val subTp       = appliedType(pre.memberType(sym), sym.typeParams.map(_ => WildcardType))
-              val subTpApprox = typer.infer.approximateAbstracts(subTp) // TODO: needed?
-              // patmatDebug("subtp"+(subTpApprox <:< tpApprox, subTpApprox, tpApprox))
-              if (subTpApprox <:< tpApprox) Some(checkableType(subTp))
-              else None
+              val symTp = sym.tpe
+
+              // to get prefixes to align (SI-6146), reduce validity of the subtype to subtyping of the superclass's instance seen from the subtype
+              // i.e., when considering XInt, ask for X's type parameter instantiation (baseType) based on XInt, which yields X[Int], which is not a subtype of X[String]
+              // since this is pretty expensive, only compute this type when the easy (and common) case does not match
+              lazy val baseTp = symTp.baseType(superSym).asSeenFrom(pre, superSym.owner)
+
+              if ((approximateAbstracts(symTp) <:< tpApprox) || (approximateAbstracts(baseTp) <:< tpApprox)) {
+                val checkableTp =
+                  if (symTp.isInstanceOf[ConstantType]) symTp // enum
+                  else TypeRef(checkableType(widenDeep(symTp.prefix)), sym, wildArgs(sym.typeParams))
+                // patmatDebug("valid subtype: "+(sym, symTp, checkableTp))
+
+                Some(checkableTp)
+              } else None
             })
-          patmatDebug("enum sealed "+ (tp, tpApprox) + " as "+ validSubTypes)
+
+          patmatDebug("enum sealed "+ (tp, tpApprox) + " as "+ (if (validSubTypes.isEmpty) "WARNING: no valid subclasses found" else validSubTypes))
           Some(validSubTypes)
       }
+
+    @inline private def wildArgs(ps: List[Any]) = if (ps.isEmpty) Nil else List.fill(ps.length)(WildcardType)
 
     // approximate a type to the static type that is fully checkable at run time,
     // hiding statically known but dynamically uncheckable information using existential quantification
@@ -2659,8 +2692,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
       object typeArgsToWildcardsExceptArray extends TypeMap {
         def apply(tp: Type): Type = tp match {
           case TypeRef(pre, sym, as) if as.nonEmpty && (sym ne ArrayClass) =>
-            val wildArgs = List.fill(as.length)(WildcardType)
-            TypeRef(pre, sym, wildArgs)
+            TypeRef(pre, sym, wildArgs(as))
           case _ =>
             mapOver(tp)
         }
