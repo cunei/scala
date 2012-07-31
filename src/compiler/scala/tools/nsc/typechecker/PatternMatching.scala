@@ -2385,7 +2385,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
               c
             case _ =>
               val fresh = mkFresh
-              patmatDebug("uniqued const: "+ (tp, fresh))
+              patmatDebug("uniqued const: "+ (tp, fresh.tp, fresh))
               uniques(tp) = fresh
               fresh
           })
@@ -2436,13 +2436,14 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
     object TypeConst extends TypeConstExtractor {
       def apply(tp: Type) = {
         if (tp =:= NullTp) NullConst
-        else if (tp.isInstanceOf[SingletonType]) ValueConst.fromType(tp)
+        else if (tp.isStable) ValueConst.fromType(tp)
         else Const.unique(tp, new TypeConst(tp))
       }
       def unapply(c: TypeConst): Some[Type] = Some(c.tp)
     }
 
     // corresponds to a type test that does not imply any value-equality (well, except for outer checks, which we don't model yet)
+    // tp must have been transformed into the static equivalent of the type that is checked at run time
     sealed class TypeConst(val tp: Type) extends Const {
       assert(!(tp =:= NullTp))
       private[this] val id: Int = Const.nextTypeId
@@ -2455,10 +2456,10 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
     // p is a unique type or a constant value
     object ValueConst {
       def fromType(tp: Type) = {
-        assert(tp.isInstanceOf[SingletonType])
+        assert(tp.isStable)
         val toString = tp match {
           case ConstantType(c) => c.escapedStringValue
-          case _ => tp.toString
+          case _ => tp.typeSymbol.name.toString
         }
         Const.unique(tp, new ValueConst(tp, tp.widen, toString))
       }
@@ -2469,7 +2470,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
           val wideTp = widenToClass(tp)
 
           val narrowTp =
-            if (tp.isInstanceOf[SingletonType]) tp
+            if (tp.isStable) tp
             else p match {
               case Literal(c) =>
                 if (c.tpe.typeSymbol == UnitClass) c.tpe
@@ -2483,8 +2484,9 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
             }
 
           val toString =
-            if (p.hasSymbol && p.symbol.isStable) p.symbol.name.toString // tp.toString
-            else p.toString //+"#"+ id
+            if (false && debugging.printPatmat) s"VC[$p (= ${p.symbol}) : $tp (:> $narrowTp <: ${checkableType(wideTp)})]"
+            else if (p.hasSymbol && p.symbol.isStable) p.symbol.name.toString
+            else p.toString
 
           Const.unique(narrowTp, new ValueConst(narrowTp, checkableType(wideTp), toString)) // must make wide type checkable so that it is comparable to types from TypeConst
         }
