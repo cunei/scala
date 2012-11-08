@@ -80,18 +80,6 @@ abstract class Pickler extends SubComponent {
     private def isRootSym(sym: Symbol) =
       sym.name.toTermName == rootName && sym.owner == rootOwner
 
-    /** Returns usually symbol's owner, but picks classfile root instead
-     *  for existentially bound variables that have a non-local owner.
-     *  Question: Should this be done for refinement class symbols as well?
-     */
-    private def localizedOwner(sym: Symbol) =
-      if (isLocal(sym) && !isRootSym(sym) && !isLocal(sym.owner))
-        // don't use a class as the localized owner for type parameters that are not owned by a class: those are not instantiated by asSeenFrom
-        // however, they would suddenly be considered by asSeenFrom if their localized owner became a class (causing the crashes of #4079, #2741)
-        (if(sym.isTypeParameter && !sym.owner.isClass) nonClassRoot
-         else root)
-      else sym.owner
-
     /** Is root in symbol.owner*, or should it be treated as a local symbol
      *  anyway? This is the case if symbol is a refinement class,
      *  an existentially bound variable, or a higher-order type parameter.
@@ -499,7 +487,15 @@ abstract class Pickler extends SubComponent {
      */
     private def writeSymInfo(sym: Symbol) {
       writeRef(sym.name)
-      writeRef(localizedOwner(sym))
+      // when sym was a local symbol but its owner was not, we used to rewrite ("localize")
+      // sym's owner to the class that corresponds to the current compilation unit (the classfile root)
+      // this worked around problems with existentials (SI-412, SI-528, SI-2323) but caused multiple other regressions (SI-2741, SI-4079 and SI-6596)
+      // I believe the issue was fixed properly when addressing SI-1086 in 8bacd7cf46
+      // thus, we no longer need to rewrite these owners (the corresponding regressions tests pass without it, I added the missing one for SI-2323)
+      // worse, it breaks incremental compilation in SBT (SI-6596) because a symbol's owner changes depending on
+      // whether it was typechecked from source directly, or whether it was typechecked, pickled, and unpickled again
+      // these two should yield the same symbol or incremental compilation becomes trickier
+      writeRef(sym.owner)
       writeLongNat((rawFlagsToPickled(sym.flags & PickledFlags)))
       if (sym.hasAccessBoundary) writeRef(sym.privateWithin)
       writeRef(sym.info)
@@ -999,7 +995,7 @@ abstract class Pickler extends SubComponent {
       def printSymInfo(sym: Symbol) {
         var posOffset = 0
         printRef(sym.name)
-        printRef(localizedOwner(sym))
+        printRef(sym.owner)
         print(flagsToString(sym.flags & PickledFlags)+" ")
         if (sym.hasAccessBoundary) printRef(sym.privateWithin)
         printRef(sym.info)
