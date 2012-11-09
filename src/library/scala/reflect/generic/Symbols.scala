@@ -171,6 +171,7 @@ import Flags._
     def newModule(name: TermName, clazz: Symbol, pos: Position = NoPosition): Symbol
     def newModuleClass(name: TypeName, pos: Position = NoPosition): Symbol
     def newValue(name: TermName, pos: Position = NoPosition): Symbol
+    def newStubSymbol(name: Name): Symbol
 
     // access to related symbols
 

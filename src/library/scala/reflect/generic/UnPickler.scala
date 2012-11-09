@@ -250,7 +250,10 @@ abstract class UnPickler {
             // (3) Try as a nested object symbol.
             nestedObjectSymbol orElse {
               // (4) Otherwise, fail.
-              errorMissingRequirement(name, owner)
+              // errorMissingRequirement(name, owner) orElse {
+                // (5) Create a stub symbol to defer hard failure a little longer.
+                owner.newStubSymbol(name)
+              // }
             }
           }
         }

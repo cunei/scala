@@ -278,6 +278,16 @@ trait Symbols extends reflect.generic.Symbols { self: SymbolTable =>
       case x: TermName  => newErrorValue(x)
     }
 
+    /** Creates a placeholder symbol for when a name is encountered during
+     *  unpickling for which there is no corresponding classfile.  This defers
+     *  failure to the point when that name is used for something, which is
+     *  often to the point of never.
+     */
+    def newStubSymbol(name: Name): Symbol = name match {
+      case n: TypeName  => new StubClassSymbol(this, n)
+      case _            => new StubTermSymbol(this, name.toTermName)
+    }
+
 // Locking and unlocking ------------------------------------------------------
 
     // True if the symbol is unlocked.
@@ -2137,6 +2147,37 @@ trait Symbols extends reflect.generic.Symbols { self: SymbolTable =>
     }
     override def sourceModule_=(module: Symbol) { this.module = module }
   }
+
+  trait StubSymbol extends Symbol {
+    protected def stubWarning = {
+      kindString+" "+nameString+locationString+" (a classfile may be missing)"
+    }
+    private def fail[T](alt: T): T = {
+      // Avoid issuing lots of redundant errors
+      if (!hasFlag(IS_ERROR)) {
+        abort("bad symbolic reference to " + stubWarning)
+        if (settings.debug.value)
+          (new Throwable).printStackTrace
+
+        this setFlag IS_ERROR
+      }
+      alt
+    }
+    override def info            = fail(NoType)
+    // // This one doesn't call fail because SpecializeTypes winds up causing
+    // // isMonomorphicType to be called, which calls this, which would fail us
+    // // in all the scenarios we're trying to keep from failing.
+    // override def originalInfo    = NoType
+    // override def rawInfo         = fail(NoType)
+    // override def companionSymbol = fail(NoSymbol)
+
+    locally {
+      if (settings.debug.value)
+        println("creating stub symbol for " + stubWarning)
+    }
+  }
+  class StubClassSymbol(owner0: Symbol, name0: TypeName) extends ClassSymbol(owner0, owner0.pos, name0) with StubSymbol
+  class StubTermSymbol(owner0: Symbol, name0: TermName) extends TermSymbol(owner0, owner0.pos, name0) with StubSymbol
 
   /** An object representing a missing symbol */
   object NoSymbol extends Symbol(null, NoPosition, nme.NO_NAME) {
