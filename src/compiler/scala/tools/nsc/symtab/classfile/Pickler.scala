@@ -87,7 +87,7 @@ abstract class Pickler extends SubComponent {
     private def isLocal(sym: Symbol): Boolean =
       !sym.isPackageClass && sym != NoSymbol &&
       (isRootSym(sym) ||
-       sym.isRefinementClass ||
+       sym.isAnonOrRefinementClass || sym.isAnonymousFunction ||
        sym.isAbstractType && sym.hasFlag(EXISTENTIAL) || // existential param
        sym.isParameter ||
        isLocal(sym.owner))
