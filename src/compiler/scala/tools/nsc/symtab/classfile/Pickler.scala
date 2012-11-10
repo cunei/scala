@@ -106,6 +106,8 @@ abstract class Pickler extends SubComponent {
     /** Is root in symbol.owner*, or should it be treated as a local symbol
      *  anyway? This is the case if symbol is a refinement class,
      *  an existentially bound variable, or a higher-order type parameter.
+     *
+     * TODO: consolidate this with Symbol#isLocal -- if they can't be aligned, maybe call this isInternal instead
      */
     private def isLocal(sym: Symbol): Boolean =
       !sym.isPackageClass && sym != NoSymbol &&
