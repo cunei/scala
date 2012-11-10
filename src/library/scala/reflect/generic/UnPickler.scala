@@ -214,126 +214,126 @@ abstract class UnPickler {
       val end   = readNat() + readIndex
       def atEnd = readIndex == end
 
-      def readExtSymbol(): Symbol = {
-        val name  = readNameRef()
-        val owner = if (atEnd) definitions.RootClass else readSymbolRef()
+      tag match {
+        case NONEsym                 => NoSymbol
+        case EXTref | EXTMODCLASSref =>
+          val name  = readNameRef()
+          val owner = if (atEnd) definitions.RootClass else readSymbolRef()
 
-        def fromName(name: Name) = mkTermName(name) match {
-          case nme.ROOT     => definitions.RootClass
-          case nme.ROOTPKG  => definitions.RootPackage
-          case _            =>
-            val s = owner.info.decl(name)
-            if (tag == EXTref) s else s.moduleClass
-        }
-        def nestedObjectSymbol: Symbol = {
-          // If the owner is overloaded (i.e. a method), it's not possible to select the
-          // right member, so return NoSymbol. This can only happen when unpickling a tree.
-          // the "case Apply" in readTree() takes care of selecting the correct alternative
-          //  after parsing the arguments.
-          if (owner.isOverloaded)
-            return NoSymbol
-
-          if (tag == EXTMODCLASSref) {
-            val moduleVar = owner.info.decl(nme.moduleVarName(name))
-            if (moduleVar.isLazyAccessor)
-              return moduleVar.lazyAccessor.lazyAccessor
+          def fromName(name: Name) = mkTermName(name) match {
+            case nme.ROOT     => definitions.RootClass
+            case nme.ROOTPKG  => definitions.RootPackage
+            case _            =>
+              val s = owner.info.decl(name)
+              if (tag == EXTref) s else s.moduleClass
           }
-          NoSymbol
-        }
+          def nestedObjectSymbol: Symbol = {
+            // If the owner is overloaded (i.e. a method), it's not possible to select the
+            // right member, so return NoSymbol. This can only happen when unpickling a tree.
+            // the "case Apply" in readTree() takes care of selecting the correct alternative
+            //  after parsing the arguments.
+            if (owner.isOverloaded)
+              return NoSymbol
 
-        // (1) Try name.
-        fromName(name) orElse {
-          // (2) Try with expanded name.  Can happen if references to private
-          // symbols are read from outside: for instance when checking the children
-          // of a class.  See #1722.
-          fromName(nme.expandedName(name, owner)) orElse {
-            // (3) Try as a nested object symbol.
-            nestedObjectSymbol orElse {
-              // (4) Otherwise, fail.
-              // errorMissingRequirement(name, owner) orElse {
-                // (5) Create a stub symbol to defer hard failure a little longer.
-                owner.newStubSymbol(name)
-              // }
+            if (tag == EXTMODCLASSref) {
+              val moduleVar = owner.info.decl(nme.moduleVarName(name))
+              if (moduleVar.isLazyAccessor)
+                return moduleVar.lazyAccessor.lazyAccessor
+            }
+            NoSymbol
+          }
+
+          // (1) Try name.
+          fromName(name) orElse {
+            // (2) Try with expanded name.  Can happen if references to private
+            // symbols are read from outside: for instance when checking the children
+            // of a class.  See #1722.
+            fromName(nme.expandedName(name, owner)) orElse {
+              // (3) Try as a nested object symbol.
+              nestedObjectSymbol orElse {
+                // (4) Otherwise, fail.
+                // errorMissingRequirement(name, owner) orElse {
+                  // (5) Create a stub symbol to defer hard failure a little longer.
+                  owner.newStubSymbol(name)
+                // }
+              }
             }
           }
-        }
+
+        case _                       =>
+          // symbols that were pickled with Pickler.writeSymInfo
+          val nameref      = readNat()
+          val name         = at(nameref, readName)
+          val owner        = readSymbolRef()
+          val flags        = pickledToRawFlags(readLongNat())
+          var inforef      = readNat()
+          val privateWithin =
+            if (!isSymbolRef(inforef)) NoSymbol
+            else {
+              val pw = at(inforef, readSymbol)
+              inforef = readNat()
+              pw
+            }
+
+          def isModuleFlag = (flags & MODULE) != 0L
+          def isMethodFlag = (flags & METHOD) != 0L
+          def isClassRoot  = (name == classRoot.name) && (owner == classRoot.owner)
+          def isModuleRoot = (name == moduleRoot.name) && (owner == moduleRoot.owner)
+
+          def finishSym(sym: Symbol): Symbol = {
+            sym.flags         = flags & PickledFlags
+            sym.privateWithin = privateWithin
+            sym.info = (
+              if (atEnd) {
+                assert(!sym.isSuperAccessor, sym)
+                newLazyTypeRef(inforef)
+              }
+              else {
+                assert(sym.isSuperAccessor || sym.isParamAccessor, sym)
+                newLazyTypeRefAndAlias(inforef, readNat())
+              }
+              // println(info)
+            )
+            if (sym.owner.isClass && sym != classRoot && sym != moduleRoot &&
+                !sym.isModuleClass && !sym.isRefinementClass && !sym.isTypeParameter && !sym.isExistentiallyBound)
+              symScope(sym.owner) enter sym
+
+            sym
+          }
+
+          println("unpickled "+(name, owner.name))
+
+          finishSym(tag match {
+            case TYPEsym  => owner.newAbstractType(mkTypeName(name))
+            case ALIASsym => owner.newAliasType(mkTypeName(name))
+            case CLASSsym =>
+              val sym = (isClassRoot, isModuleFlag) match {
+                case (true, true)   => moduleRoot.moduleClass
+                case (true, false)  => classRoot
+                case (false, true)  => owner.newModuleClass(mkTypeName(name))
+                case (false, false) => owner.newClass(mkTypeName(name))
+              }
+              if (!atEnd)
+                sym.typeOfThis = newLazyTypeRef(readNat())
+
+              sym
+            case MODULEsym =>
+              val clazz = at(inforef, () => readType()).typeSymbol // after the NMT_TRANSITION period, we can leave off the () => ... ()
+              if (isModuleRoot) moduleRoot
+              else {
+                val m = owner.newModule(name, clazz)
+                clazz.sourceModule = m
+                m
+              }
+            case VALsym =>
+              if (isModuleRoot) { assert(false); NoSymbol }
+              else if (isMethodFlag) owner.newMethod(name)
+              else owner.newValue(name)
+
+            case _ =>
+              errorBadSignature("bad symbol tag: " + tag)
+          })
       }
-
-      tag match {
-        case NONEsym                 => return NoSymbol
-        case EXTref | EXTMODCLASSref => return readExtSymbol()
-        case _                       => ()
-      }
-
-      // symbols that were pickled with Pickler.writeSymInfo
-      val nameref      = readNat()
-      val name         = at(nameref, readName)
-      val owner        = readSymbolRef()
-      val flags        = pickledToRawFlags(readLongNat())
-      var inforef      = readNat()
-      val privateWithin =
-        if (!isSymbolRef(inforef)) NoSymbol
-        else {
-          val pw = at(inforef, readSymbol)
-          inforef = readNat()
-          pw
-        }
-
-      def isModuleFlag = (flags & MODULE) != 0L
-      def isMethodFlag = (flags & METHOD) != 0L
-      def isClassRoot  = (name == classRoot.name) && (owner == classRoot.owner)
-      def isModuleRoot = (name == moduleRoot.name) && (owner == moduleRoot.owner)
-
-      def finishSym(sym: Symbol): Symbol = {
-        sym.flags         = flags & PickledFlags
-        sym.privateWithin = privateWithin
-        sym.info = (
-          if (atEnd) {
-            assert(!sym.isSuperAccessor, sym)
-            newLazyTypeRef(inforef)
-          }
-          else {
-            assert(sym.isSuperAccessor || sym.isParamAccessor, sym)
-            newLazyTypeRefAndAlias(inforef, readNat())
-          }
-        )
-        if (sym.owner.isClass && sym != classRoot && sym != moduleRoot &&
-            !sym.isModuleClass && !sym.isRefinementClass && !sym.isTypeParameter && !sym.isExistentiallyBound)
-          symScope(sym.owner) enter sym
-
-        sym
-      }
-
-      finishSym(tag match {
-        case TYPEsym  => owner.newAbstractType(mkTypeName(name))
-        case ALIASsym => owner.newAliasType(mkTypeName(name))
-        case CLASSsym =>
-          val sym = (isClassRoot, isModuleFlag) match {
-            case (true, true)   => moduleRoot.moduleClass
-            case (true, false)  => classRoot
-            case (false, true)  => owner.newModuleClass(mkTypeName(name))
-            case (false, false) => owner.newClass(mkTypeName(name))
-          }
-          if (!atEnd)
-            sym.typeOfThis = newLazyTypeRef(readNat())
-
-          sym
-        case MODULEsym =>
-          val clazz = at(inforef, () => readType()).typeSymbol // after the NMT_TRANSITION period, we can leave off the () => ... ()
-          if (isModuleRoot) moduleRoot
-          else {
-            val m = owner.newModule(name, clazz)
-            clazz.sourceModule = m
-            m
-          }
-        case VALsym =>
-          if (isModuleRoot) { assert(false); NoSymbol }
-          else if (isMethodFlag) owner.newMethod(name)
-          else owner.newValue(name)
-
-        case _ =>
-          errorBadSignature("bad symbol tag: " + tag)
-      })
     }
 
     /** Read a type
