@@ -1043,6 +1043,8 @@ abstract class Pickler extends SubComponent {
           print("CLASSINFOtpe "); printRef(clazz); printRefs(parents);
         case mt @ MethodType(formals, restpe) =>
           print("METHODtpe"); printRef(restpe); printRefs(formals)
+        case mt @ NullaryMethodType(restpe) =>
+          print("NULLARYMETHODtpe(=POLYtpe)"); printRef(restpe)
         case PolyType(tparams, restpe) =>
           print("POLYtpe "); printRef(restpe); printRefs(tparams);
         case ExistentialType(tparams, restpe) =>
