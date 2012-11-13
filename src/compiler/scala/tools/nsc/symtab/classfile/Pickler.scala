@@ -508,7 +508,7 @@ abstract class Pickler extends SubComponent {
       writeRef(sym.name)
       // when sym was a local symbol but its owner was not, we used to rewrite ("localize")
       // sym's owner to the class that corresponds to the current compilation unit (the classfile root)
-      // this worked around problems with existentials (SI-412, SI-528, SI-2323) but caused multiple other regressions (SI-2741, SI-4079 and SI-6596)
+      // this worked around problems with existentials (SI-2323) but caused multiple other regressions (SI-2741, SI-4079 and SI-6596)
       // I believe the issue was fixed properly when addressing SI-1086 in 8bacd7cf46
       // thus, we no longer need to rewrite these owners (the corresponding regressions tests pass without it, I added the missing one for SI-2323)
       // worse, it breaks incremental compilation in SBT (SI-6596) because a symbol's owner changes depending on
