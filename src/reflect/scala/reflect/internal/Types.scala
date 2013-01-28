@@ -4786,6 +4786,27 @@ trait Types extends api.Types { self: SymbolTable =>
       else mapOver(tp)
   }
 
+  // only approximate singleton types that depend on symbols
+  // bound by a MethodType contained in the type we're approximating
+  def preciseApproximateDependentMap = new TypeMap {
+    private val locals = mutable.ArrayBuffer.empty[Symbol]
+
+    def apply(tp: Type): Type = try {
+      tp match {
+        case mt@MethodType(params, res) if !res.isTrivial =>
+          locals ++= params
+          mapOver(tp)
+        case SingleType(pre, sym) if locals contains sym =>
+          BoundedWildcardType(pre.memberInfo(sym).bounds)
+        case _ =>
+          mapOver(tp)
+      }
+    } catch {
+      case ex: MalformedType =>
+        WildcardType
+    }
+  }
+
   /** Note: This map is needed even for non-dependent method types, despite what the name might imply.
    */
   class InstantiateDependentMap(params: List[Symbol], actuals0: List[Type]) extends TypeMap with KeepOnlyTypeConstraints {

@@ -137,8 +137,8 @@ trait Implicits {
    * so we have to approximate (otherwise it is excluded a priori).
    */
   private def depoly(tp: Type): Type = tp match {
-    case PolyType(tparams, restpe) => deriveTypeWithWildcards(tparams)(ApproximateDependentMap(restpe))
-    case _                         => ApproximateDependentMap(tp)
+    case PolyType(tparams, restpe) => deriveTypeWithWildcards(tparams)(preciseApproximateDependentMap(restpe))
+    case _ => preciseApproximateDependentMap(tp)
   }
 
   /** The result of an implicit search
