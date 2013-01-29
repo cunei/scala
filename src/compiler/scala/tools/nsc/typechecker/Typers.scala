@@ -3475,30 +3475,36 @@ trait Typers extends Modes with Adaptations with Tags {
       }
 
       // setType null is necessary so that ref will be stabilized; see bug 881
-      val fun1 = typedPos(fun.pos)(Apply(Select(fun setType null, unapp), List(arg)))
-
-      if (fun1.tpe.isErroneous) duplErrTree
+      val extractorCallTyped = typedPos(fun.pos)(Apply(Select(fun setType null, unapp), List(arg)))
+      if (extractorCallTyped.tpe.isErroneous) duplErrTree
       else {
-        val resTp     = fun1.tpe.finalResultType.normalize
+        val extractorApply =
+          extractorCallTyped match {
+            // the call to fun may be expanded to a block in the presence of default arguments
+            case Block(_, extractorApply) => extractorApply
+            case _ => extractorCallTyped // TODO: should always be an Apply
+          }
+
+        val resTp     = extractorApply.tpe.finalResultType.normalize
         val nbSubPats = args.length
 
-        val (formals, formalsExpanded) = extractorFormalTypes(fun0.pos, resTp, nbSubPats, fun1.symbol)
+        val (formals, formalsExpanded) = extractorFormalTypes(fun0.pos, resTp, nbSubPats, extractorApply.symbol)
         if (formals == null) duplErrorTree(WrongNumberOfArgsError(tree, fun))
         else {
           val args1 = typedArgs(args, mode, formals, formalsExpanded)
           // This used to be the following (failing) assert:
-          //   assert(isFullyDefined(pt), tree+" ==> "+UnApply(fun1, args1)+", pt = "+pt)
+          //   assert(isFullyDefined(pt), tree+" ==> "+UnApply(extractorApply, args1)+", pt = "+pt)
           // I modified as follows.  See SI-1048.
           val pt1 = if (isFullyDefined(pt)) pt else makeFullyDefined(pt)
 
           val itype = glb(List(pt1, arg.tpe))
           arg.tpe = pt1    // restore type (arg is a dummy tree, just needs to pass typechecking)
-          val unapply = UnApply(fun1, args1) setPos tree.pos setType itype
+          val unapply = UnApply(extractorCallTyped, args1) setPos tree.pos setType itype
 
           // if the type that the unapply method expects for its argument is uncheckable, wrap in classtag extractor
           // skip if the unapply's type is not a method type with (at least, but really it should be exactly) one argument
           // also skip if we already wrapped a classtag extractor (so we don't keep doing that forever)
-          if (uncheckedTypeExtractor.isEmpty || fun1.symbol.owner.isNonBottomSubClass(ClassTagClass)) unapply
+          if (uncheckedTypeExtractor.isEmpty || extractorApply.symbol.owner.isNonBottomSubClass(ClassTagClass)) unapply
           else wrapClassTagUnapply(unapply, uncheckedTypeExtractor.get, unappType.paramTypes.head)
         }
       }
