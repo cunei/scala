@@ -4258,6 +4258,27 @@ trait Typers extends Modes with Adaptations with Tags {
         }
       }
 
+      // SI-5024
+      def binderTypeImpliedByPattern(pat: Tree, pt: Type): Type = {
+        pat match {
+          // a stable identifier (or selection) pattern does not contribute any type information
+          // case x@Nil => x --> all we know about `x` is that it satisfies Nil == x, which could be anything
+          case Ident(_) | Select(_, _)        => pt
+          // a type test obviously contributes some knowledge about the binder's type
+          case Typed(_, _)                    => pat.tpe
+          // a case class (the constructor's result type) or extractor (the unapply's argument type) do contribute type info
+          case UnApply(_, _) | Apply(_, _)    => pat.tpe
+          // a literal constant's equals method is well-behaved, so can derive knowledge about the binder's type
+          // similar for equality to this
+          case Literal(Constant(_)) => pat.tpe.widen
+          case This(_) => pat.tpe
+          case Alternative(alts)              => glb(alts map (binderTypeImpliedByPattern(_, pt)))
+          case _ =>
+            debugwarn(s"unknown pattern: $pat : ${pat.tpe} <:< $pt")
+            pt
+        }
+      }
+
       def typedBind(tree: Bind) = {
         val name = tree.name
         val body = tree.body
@@ -4288,10 +4309,16 @@ trait Typers extends Modes with Adaptations with Tags {
             }
 
             val body1 = typed(body, mode, pt)
-            val symTp =
-              if (treeInfo.isSequenceValued(body)) seqType(body1.tpe)
+            val impliedTp =
+              if (newPatternMatching) binderTypeImpliedByPattern(body1, pt)
               else body1.tpe
+
+            val symTp =
+              if (treeInfo.isSequenceValued(body)) seqType(impliedTp)
+              else impliedTp
             sym setInfo symTp
+
+            debuglog(s"typedBind: $sym @ $body1 : ${body1.tpe} <:< $pt --> $symTp")
 
             // have to imperatively set the symbol for this bind to keep it in sync with the symbols used in the body of a case
             // when type checking a case we imperatively update the symbols in the body of the case
