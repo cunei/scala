@@ -22,7 +22,7 @@ END-USER TARGETS
   <target name="clean" depends="quick.clean"
     description="Removes binaries of compiler and library. Distributions are untouched."/>
 
-  <target name="test" depends="test.done, osgi.test"
+  <target name="test" depends="test.done"
     description="Runs test suite and bootstrapping test on Scala compiler and library."/>
 
   <target name="test-opt"
@@ -1121,7 +1121,7 @@ QUICK BUILD (QUICK)
     <touch file="${build-quick.dir}/repl.complete" verbose="no"/>
   </target>
 
-  <target name="quick.swing" depends="quick.comp" if="has.java6" unless="quick.comp.available">
+  <target name="quick.swing" depends="quick.repl" if="has.java6" unless="quick.comp.available">
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
       compilerpathref="locker.classpath"
@@ -1133,7 +1133,7 @@ QUICK BUILD (QUICK)
     </scalacfork>
   </target>
 
-  <target name="quick.pre-plugins" depends="quick.repl" unless="quick.repl.available">
+  <target name="quick.pre-plugins" depends="quick.swing" unless="quick.repl.available">
     <uptodate property="quick.plugins.available" targetfile="${build-quick.dir}/plugins.complete">
       <srcfiles dir="${src.dir}/continuations"/>
     </uptodate>
@@ -1664,8 +1664,8 @@ OSGi Artifacts
   <target name="osgi.init" depends="pack.done">
     <mkdir dir="${build-osgi.dir}"/>
 
-    <property name="osgi.test.src" value="${partest.dir}/osgi/src"/>
-    <property name="osgi.test.classes" value="${build-osgi.dir}/classes"/>
+    <property name="test.osgi.src" value="${partest.dir}/osgi/src"/>
+    <property name="test.osgi.classes" value="${build-osgi.dir}/classes"/>
 
     <!-- simplify fixing pom versions -->
     <macrodef name="make-bundle">
@@ -1728,7 +1728,7 @@ OSGi Artifacts
 
   <target name="osgi.done" depends="osgi.bundles, osgi.bundles.swing"/>
 
-  <target name="osgi.test.init" depends="osgi.done">
+  <target name="test.osgi.init" depends="osgi.done">
     <path id="osgi.bundle.classpath">
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-library.jar"/>
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-reflect.jar"/>
@@ -1736,52 +1736,52 @@ OSGi Artifacts
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-actors.jar"/>
     </path>
 
-    <uptodate property="osgi.test.available" targetfile="${build-osgi.dir}/test-compile.complete">
-      <srcfiles dir="${osgi.test.src}">
+    <uptodate property="test.osgi.available" targetfile="${build-osgi.dir}/test-compile.complete">
+      <srcfiles dir="${test.osgi.src}">
         <include name="**/*.scala"/>
       </srcfiles>
     </uptodate>
   </target>
 
-  <target name="osgi.test.comp" depends="osgi.test.init, quick.done" unless="osgi.test.available">
-    <stopwatch name="osgi.test.comp.timer"/>
-    <mkdir dir="${osgi.test.classes}"/>
+  <target name="test.osgi.comp" depends="test.osgi.init, quick.done" unless="test.osgi.available">
+    <stopwatch name="test.osgi.comp.timer"/>
+    <mkdir dir="${test.osgi.classes}"/>
     <scalacfork
-      destdir="${osgi.test.classes}"
+      destdir="${test.osgi.classes}"
       compilerpathref="quick.classpath"
       params="${scalac.args.quick}"
-      srcdir="${osgi.test.src}"
+      srcdir="${test.osgi.src}"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
       <compilationpath>
-        <pathelement location="${osgi.test.classes}"/>
+        <pathelement location="${test.osgi.classes}"/>
         <path refid="osgi.bundle.classpath"/>
         <path refid="pax.exam.classpath"/>
         <path refid="forkjoin.classpath"/>
       </compilationpath>
     </scalacfork>
     <touch file="${build-osgi.dir}/test-compile.complete" verbose="no"/>
-    <stopwatch name="osgi.test.comp.timer" action="total"/>
+    <stopwatch name="test.osgi.comp.timer" action="total"/>
   </target>
 
-  <target name="osgi.test" depends="osgi.test.comp">
-    <stopwatch name="osgi.test.timer"/>
-    <mkdir dir="${osgi.test.classes}"/>
+  <target name="test.osgi" depends="test.osgi.comp">
+    <stopwatch name="test.osgi.timer"/>
+    <mkdir dir="${test.osgi.classes}"/>
     <junit fork="yes" haltonfailure="yes">
       <classpath>
-        <pathelement location="${osgi.test.classes}"/>
+        <pathelement location="${test.osgi.classes}"/>
         <path refid="osgi.bundle.classpath"/>
         <path refid="pax.exam.classpath"/>
         <path refid="forkjoin.classpath"/>
       </classpath>
       <batchtest fork="yes" todir="${build-osgi.dir}">
-        <fileset dir="${osgi.test.classes}">
+        <fileset dir="${test.osgi.classes}">
           <include name="**/*Test.class"/>
         </fileset>
       </batchtest>
       <formatter type="brief" usefile="false" />
     </junit>
-    <stopwatch name="osgi.test.timer" action="total"/>
+    <stopwatch name="test.osgi.timer" action="total"/>
   </target>
 
   <target name="osgi.clean">
@@ -2437,7 +2437,8 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-  <target name="test.done" depends="test.suite, test.continuations.suite, test.scaladoc, test.interactive, test.stability, test.sbt"/>
+<!-- currently disabled: test.bc, test.positions -->
+  <target name="test.done" depends="test.osgi, test.sbt, test.interactive, test.continuations.suite, test.ant, test.classload, test.debug, test.suite, test.scaladoc, test.stability"/>
 
 
 <!-- ===========================================================================
@@ -2458,7 +2459,7 @@ Binary compatibility testing
     </artifact:dependencies>
   </target>
 
-  <target name="bc.run" depends="bc.init, pack.lib">
+  <target name="test.bc" depends="bc.init, pack.lib">
     <java
        fork="true"
        failonerror="true"
