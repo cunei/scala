@@ -505,25 +505,18 @@ INITIALISATION
     <path id="locker.lib.build.path">
       <pathelement location="${build-locker.dir}/classes/library"/>
       <path refid="forkjoin.classpath"/>
+      <path refid="aux.libs"/>
     </path>
 
     <path id="locker.reflect.build.path">
-      <pathelement location="${build-locker.dir}/classes/library"/>
+      <path refid="locker.lib.build.path"/>
       <pathelement location="${build-locker.dir}/classes/reflect"/>
-      <path refid="aux.libs"/>
     </path>
 
     <path id="locker.comp.build.path">
-      <pathelement location="${build-locker.dir}/classes/library"/>
-      <pathelement location="${build-locker.dir}/classes/reflect"/>
+      <path refid="locker.reflect.build.path"/>
       <pathelement location="${build-locker.dir}/classes/compiler"/>
       <path refid="asm.classpath"/>
-      <path refid="aux.libs"/>
-    </path>
-
-    <path id="locker.compiler.path">
-      <path refid="locker.comp.build.path"/>
-      <path refid="forkjoin.classpath"/>
     </path>
 
     <path id="palo.bin.class.path">
@@ -541,36 +534,25 @@ INITIALISATION
     </path>
 
     <path id="quick.reflect.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
+      <path refid="quick.lib.build.path"/>
       <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <path refid="forkjoin.classpath"/>
-      <path refid="aux.libs"/>
     </path>
 
     <path id="quick.comp.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
+      <path refid="quick.reflect.build.path"/>
       <pathelement location="${build-quick.dir}/classes/compiler"/>
-      <path refid="aux.libs"/>
-      <path refid="forkjoin.classpath"/>
       <path refid="asm.classpath"/>
     </path>
 
     <path id="quick.repl.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
+      <path refid="quick.comp.build.path"/>
       <pathelement location="${build-quick.dir}/classes/repl"/>
       <pathelement location="${jline.jar}"/>
     </path>
 
     <path id="quick.plugins.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
+      <path refid="quick.comp.build.path"/>
       <pathelement location="${build-quick.dir}/classes/continuations-plugin"/>
-      <path refid="forkjoin.classpath"/>
-      <path refid="aux.libs"/>
     </path>
 
     <path id="quick.scalacheck.build.path">
@@ -579,88 +561,41 @@ INITIALISATION
     </path>
 
     <path id="quick.scalap.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
+      <path refid="quick.comp.build.path"/>
       <pathelement location="${build-quick.dir}/classes/scalap"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
-      <pathelement location="${ant.jar}"/>
-      <path refid="forkjoin.classpath"/>
     </path>
 
     <path id="quick.partest.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
+      <path refid="quick.scalap.build.path"/>
       <pathelement location="${build-quick.dir}/classes/repl"/>
-      <pathelement location="${build-quick.dir}/classes/scalap"/>
-      <pathelement location="${build-quick.dir}/classes/partest"/>
-      <pathelement location="${ant.jar}"/>
-      <path refid="forkjoin.classpath"/>
-      <path refid="asm.classpath"/>
       <pathelement location="${scalacheck.jar}"/>
     </path>
 
     <path id="quick.scaladoc.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
-      <pathelement location="${build-quick.dir}/classes/scalap"/>
+      <path refid="quick.comp.build.path"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
-      <pathelement location="${ant.jar}"/>
-      <path refid="forkjoin.classpath"/>
-      <pathelement location="${scalacheck.jar}"/>
     </path>
 
     <path id="quick.interactive.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
-      <pathelement location="${build-quick.dir}/classes/scalap"/>
-      <pathelement location="${build-quick.dir}/classes/partest"/>
-      <pathelement location="${build-quick.dir}/classes/scaladoc"/>
+      <path refid="quick.comp.build.path"/>
       <pathelement location="${build-quick.dir}/classes/interactive"/>
-      <pathelement location="${ant.jar}"/>
-      <path refid="forkjoin.classpath"/>
-      <pathelement location="${scalacheck.jar}"/>
     </path>
 
     <path id="sbt.compile.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
-      <pathelement location="${build-quick.dir}/classes/scaladoc"/>
-      <pathelement location="${build-quick.dir}/classes/interactive"/>
-      <pathelement location="${build-quick.dir}/classes/repl"/>
+      <path refid="quick.comp.build.path"/>
       <pathelement location="${sbt.interface.jar}"/>
-      <path refid="forkjoin.classpath"/>
     </path>
 
     <path id="test.positions.sub.build.path">
       <pathelement location="${build-quick.dir}/classes/library"/>
     </path>
 
-    <path id="quick.compiler.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
-      <path refid="forkjoin.classpath"/>
-      <path refid="asm.classpath"/>
-      <path refid="aux.libs"/>
-    </path>
-
     <path id="quick.bin.classpath">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
-      <pathelement location="${build-quick.dir}/classes/repl"/>
+      <path refid="quick.repl.build.path"/>
       <pathelement location="${build-quick.dir}/classes/scalap"/>
       <pathelement location="${build-quick.dir}/classes/continuations-library"/>
-      <pathelement location="${jline.jar}"/>
-      <path refid="asm.classpath"/>
-      <path refid="forkjoin.classpath"/>
-      <path refid="aux.libs"/>
     </path>
 
     <!-- PACK -->
@@ -696,21 +631,15 @@ INITIALISATION
     </path>
 
     <path id="strap.reflect.build.path">
-      <pathelement location="${build-strap.dir}/classes/library"/>
+      <path refid="strap.lib.build.path"/>
       <pathelement location="${build-strap.dir}/classes/reflect"/>
-      <path refid="forkjoin.classpath"/>
-      <path refid="aux.libs"/>
     </path>
 
     <path id="strap.comp.build.path">
-      <pathelement location="${build-strap.dir}/classes/library"/>
-      <pathelement location="${build-strap.dir}/classes/reflect"/>
+      <path refid="strap.reflect.build.path"/>
       <pathelement location="${build-strap.dir}/classes/compiler"/>
-      <path refid="aux.libs"/>
-      <path refid="forkjoin.classpath"/>
       <path refid="asm.classpath"/>
     </path>
-
 
     <!-- MISC -->
     <path id="test.osgi.comp.build.path">
@@ -1134,7 +1063,7 @@ QUICK BUILD (QUICK)
     </javac>
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.compiler.path"
+      compilerpathref="locker.comp.build.path"
       srcpath="${src.dir}/library"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/library"
@@ -1144,7 +1073,7 @@ QUICK BUILD (QUICK)
     </scalacfork>
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.compiler.path"
+      compilerpathref="locker.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/actors"
       jvmargs="${scalacfork.jvmargs}">
@@ -1177,7 +1106,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/reflect"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/reflect"
-      compilerpathref="locker.compiler.path"
+      compilerpathref="locker.comp.build.path"
       params="${scalac.args.all}"
       srcdir="${src.dir}/reflect"
       jvmargs="${scalacfork.jvmargs}">
@@ -1208,7 +1137,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/compiler"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/compiler"
-      compilerpathref="locker.compiler.path"
+      compilerpathref="locker.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/compiler"
       jvmargs="${scalacfork.jvmargs}">
@@ -1238,7 +1167,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/repl"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/repl"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/repl"
       jvmargs="${scalacfork.jvmargs}">
@@ -1251,7 +1180,7 @@ QUICK BUILD (QUICK)
   <target name="quick.swing" depends="quick.repl" if="has.java6" unless="quick.comp.available">
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.compiler.path"
+      compilerpathref="locker.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/swing"
       jvmargs="${scalacfork.jvmargs}">
@@ -1272,7 +1201,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/continuations-plugin"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/continuations/plugin"
       jvmargs="${scalacfork.jvmargs}">
@@ -1290,7 +1219,7 @@ QUICK BUILD (QUICK)
     <!-- might split off library part into its own ant target -->
     <scalacfork
       destdir="${build-quick.dir}/classes/continuations-library"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick} -Xplugin-require:continuations -P:continuations:enable"
       srcdir="${src.dir}/continuations/library"
       jvmargs="${scalacfork.jvmargs}">
@@ -1314,7 +1243,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/scalacheck"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/scalacheck"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick} -nowarn"
       srcdir="${src.dir}/scalacheck"
       jvmargs="${scalacfork.jvmargs}">
@@ -1336,7 +1265,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/scalap"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/scalap"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/scalap"
       jvmargs="${scalacfork.jvmargs}">
@@ -1366,7 +1295,7 @@ QUICK BUILD (QUICK)
     </javac>
     <scalacfork
       destdir="${build-quick.dir}/classes/partest"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/partest"
       jvmargs="${scalacfork.jvmargs}">
@@ -1396,7 +1325,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/scaladoc"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/scaladoc"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/scaladoc"
       jvmargs="${scalacfork.jvmargs}">
@@ -1423,7 +1352,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/interactive"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/interactive"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/interactive"
       jvmargs="${scalacfork.jvmargs}">
@@ -1754,7 +1683,7 @@ OSGi Artifacts
     <mkdir dir="${test.osgi.classes}"/>
     <scalacfork
       destdir="${test.osgi.classes}"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${test.osgi.src}"
       jvmargs="${scalacfork.jvmargs}">
@@ -1942,8 +1871,6 @@ SBT Compiler Interface
     <property name="sbt.src.dir" value="${build-sbt.dir}/${sbt.latest.version}/src"/>
     <property name="sbt.lib.dir" value="${build-sbt.dir}/${sbt.latest.version}/lib"/>
 
-
-
     <property name="sbt.interface.jar" value="${sbt.lib.dir}/interface.jar"/>
     <property name="sbt.interface.url" value="http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/interface/${sbt.latest.version}/jars/interface.jar"/>
     <property name="sbt.interface.src.jar" value="${sbt.src.dir}/compiler-interface-src.jar"/>
@@ -1974,7 +1901,7 @@ SBT Compiler Interface
     <mkdir dir="${build-sbt.dir}/classes"/>
     <scalacfork
       destdir="${build-sbt.dir}/classes"
-      compilerpathref="quick.compiler.path"
+      compilerpathref="quick.comp.build.path"
       params="${scalac.args.quick}"
       srcdir="${sbt.src.dir}"
       jvmargs="${scalacfork.jvmargs}">
@@ -2739,7 +2666,7 @@ POSITIONS
     </if>
     <scalacfork
       destdir=""
-      compilerpathref="locker.compiler.path"
+      compilerpathref="locker.comp.build.path"
       srcpath="${srcdir}"
       params="-Xprint-pos -Yide-debug"
       srcdir="${srcdir}"
