@@ -2304,8 +2304,8 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-<!-- currently disabled: test.ant, test.bc, test.positions -->
-  <target name="test.done" depends="test.osgi, test.sbt, test.interactive, test.continuations.suite, test.classload, test.debug, test.suite, test.scaladoc, test.stability"/>
+<!-- currently disabled: test.ant, test.bc, test.positions, test.classload, test.debug -->
+  <target name="test.done" depends="test.osgi, test.sbt, test.interactive, test.continuations.suite, test.suite, test.scaladoc, test.stability"/>
 
 
 <!-- ===========================================================================
