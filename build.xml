@@ -580,11 +580,15 @@ INITIALISATION
 
     <path id="quick.interactive.build.path">
       <path refid="quick.comp.build.path"/>
+      <pathelement location="${build-quick.dir}/classes/scaladoc"/>
       <pathelement location="${build-quick.dir}/classes/interactive"/>
     </path>
 
     <path id="sbt.compile.build.path">
       <path refid="quick.comp.build.path"/>
+      <pathelement location="${build-quick.dir}/classes/repl"/>
+      <pathelement location="${build-quick.dir}/classes/scaladoc"/>
+      <pathelement location="${build-quick.dir}/classes/interactive"/>
       <pathelement location="${sbt.interface.jar}"/>
     </path>
 
@@ -2300,8 +2304,8 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-<!-- currently disabled: test.bc, test.positions -->
-  <target name="test.done" depends="test.osgi, test.sbt, test.interactive, test.continuations.suite, test.ant, test.classload, test.debug, test.suite, test.scaladoc, test.stability"/>
+<!-- currently disabled: test.ant, test.bc, test.positions -->
+  <target name="test.done" depends="test.osgi, test.sbt, test.interactive, test.continuations.suite, test.classload, test.debug, test.suite, test.scaladoc, test.stability"/>
 
 
 <!-- ===========================================================================
