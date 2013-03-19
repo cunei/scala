@@ -739,6 +739,34 @@ INITIALISATION
       <pathelement location="${build.dir}/manmaker/classes"/>
     </path>
 
+    <patternset id="lib.includes">
+      <include name="**/*.tmpl"/>
+      <include name="**/*.xml"/>
+      <include name="**/*.js"/>
+      <include name="**/*.css"/>
+    </patternset>
+
+    <patternset id="lib.rootdoc.includes">
+      <include name="**/*.tmpl"/>
+      <include name="**/*.xml"/>
+      <include name="**/*.js"/>
+      <include name="**/*.css"/>
+      <include name="rootdoc.txt"/>
+    </patternset>
+
+    <patternset id="comp.includes">
+      <include name="**/*.tmpl"/>
+      <include name="**/*.xml"/>
+      <include name="**/*.js"/>
+      <include name="**/*.css"/>
+      <include name="**/*.html"/>
+      <include name="**/*.properties"/>
+      <include name="**/*.swf"/>
+      <include name="**/*.png"/>
+      <include name="**/*.gif"/>
+      <include name="**/*.txt"/>
+    </patternset>
+
     <taskdef resource="scala/tools/ant/sabbus/antlib.xml" classpathref="starr.compiler.path"/>
   </target>
 
@@ -862,12 +890,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-locker.dir}/classes/library">
-      <fileset dir="${src.dir}/library">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.css"/>
-      </fileset>
+      <fileset dir="${src.dir}/library" includes="lib.includes"/>
     </copy>
     <touch file="${build-locker.dir}/library.complete" verbose="no"/>
     <stopwatch name="locker.lib.timer" action="total"/>
@@ -900,17 +923,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-locker.dir}/classes/reflect">
-      <fileset dir="${src.dir}/reflect">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.html"/>
-        <include name="**/*.css"/>
-        <include name="**/*.properties"/>
-        <include name="**/*.swf"/>
-        <include name="**/*.png"/>
-        <include name="**/*.gif"/>
-      </fileset>
+      <fileset dir="${src.dir}/reflect" includes="comp.includes"/>
     </copy>
     <touch file="${build-locker.dir}/reflect.complete" verbose="no"/>
     <stopwatch name="locker.reflect.timer" action="total"/>
@@ -942,17 +955,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-locker.dir}/classes/compiler">
-      <fileset dir="${src.dir}/compiler">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.html"/>
-        <include name="**/*.css"/>
-        <include name="**/*.properties"/>
-        <include name="**/*.swf"/>
-        <include name="**/*.png"/>
-        <include name="**/*.gif"/>
-      </fileset>
+      <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
     </copy>
     <touch file="${build-locker.dir}/compiler.complete" verbose="no"/>
     <stopwatch name="locker.comp.timer" action="total"/>
@@ -1166,13 +1169,7 @@ QUICK BUILD (QUICK)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-quick.dir}/classes/library">
-      <fileset dir="${src.dir}/library">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.css"/>
-        <include name="rootdoc.txt"/>
-      </fileset>
+      <fileset dir="${src.dir}/library" includes="lib.rootdoc.includes"/>
     </copy>
     <touch file="${build-quick.dir}/library.complete" verbose="no"/>
     <stopwatch name="quick.lib.timer" action="total"/>
@@ -1205,17 +1202,7 @@ QUICK BUILD (QUICK)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-quick.dir}/classes/reflect">
-      <fileset dir="${src.dir}/reflect">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.html"/>
-        <include name="**/*.css"/>
-        <include name="**/*.properties"/>
-        <include name="**/*.swf"/>
-        <include name="**/*.png"/>
-        <include name="**/*.gif"/>
-      </fileset>
+      <fileset dir="${src.dir}/reflect" includes="comp.includes"/>
     </copy>
     <touch file="${build-quick.dir}/reflect.complete" verbose="no"/>
     <stopwatch name="quick.reflect.timer" action="total"/>
@@ -1246,18 +1233,7 @@ QUICK BUILD (QUICK)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-quick.dir}/classes/compiler">
-      <fileset dir="${src.dir}/compiler">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.css"/>
-        <include name="**/*.html"/>
-        <include name="**/*.properties"/>
-        <include name="**/*.swf"/>
-        <include name="**/*.png"/>
-        <include name="**/*.gif"/>
-        <include name="**/*.txt"/>
-      </fileset>
+      <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
     </copy>
     <touch file="${build-quick.dir}/compiler.complete" verbose="no"/>
     <stopwatch name="quick.comp.timer" action="total"/>
@@ -1443,18 +1419,7 @@ QUICK BUILD (QUICK)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-quick.dir}/classes/scaladoc">
-      <fileset dir="${src.dir}/scaladoc">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.css"/>
-        <include name="**/*.html"/>
-        <include name="**/*.properties"/>
-        <include name="**/*.swf"/>
-        <include name="**/*.png"/>
-        <include name="**/*.gif"/>
-        <include name="**/*.txt"/>
-      </fileset>
+      <fileset dir="${src.dir}/scaladoc" includes="comp.includes"/>
     </copy>
     <touch file="${build-quick.dir}/scaladoc.complete" verbose="no"/>
   </target>
@@ -1891,12 +1856,7 @@ BOOTSTRAPPING BUILD (STRAP)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-strap.dir}/classes/library">
-      <fileset dir="${src.dir}/library">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.css"/>
-      </fileset>
+      <fileset dir="${src.dir}/library" includes="lib.includes"/>
     </copy>
     <touch file="${build-strap.dir}/library.complete" verbose="no"/>
     <stopwatch name="strap.lib.timer" action="total"/>
@@ -1929,18 +1889,7 @@ BOOTSTRAPPING BUILD (STRAP)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-strap.dir}/classes/reflect">
-      <fileset dir="${src.dir}/reflect">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.css"/>
-        <include name="**/*.html"/>
-        <include name="**/*.properties"/>
-        <include name="**/*.swf"/>
-        <include name="**/*.png"/>
-        <include name="**/*.gif"/>
-        <include name="**/*.txt"/>
-       </fileset>
+      <fileset dir="${src.dir}/reflect" includes="comp.includes"/>
     </copy>
     <touch file="${build-strap.dir}/reflect.complete" verbose="no"/>
     <stopwatch name="strap.reflect.timer" action="total"/>
@@ -1971,18 +1920,7 @@ BOOTSTRAPPING BUILD (STRAP)
       <entry key="copyright.string" value="${copyright.string}"/>
     </propertyfile>
     <copy todir="${build-strap.dir}/classes/compiler">
-      <fileset dir="${src.dir}/compiler">
-        <include name="**/*.tmpl"/>
-        <include name="**/*.xml"/>
-        <include name="**/*.js"/>
-        <include name="**/*.css"/>
-        <include name="**/*.html"/>
-        <include name="**/*.properties"/>
-        <include name="**/*.swf"/>
-        <include name="**/*.png"/>
-        <include name="**/*.gif"/>
-        <include name="**/*.txt"/>
-       </fileset>
+      <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
     </copy>
     <touch file="${build-strap.dir}/compiler.complete" verbose="no"/>
     <stopwatch name="strap.comp.timer" action="total"/>
