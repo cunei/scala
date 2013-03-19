@@ -428,13 +428,9 @@ INITIALISATION
     <property name="scalac.args.always" value="-Yreify-copypaste" />
   <!-- scalac.args.optimise is selectively overridden in certain antcall tasks. -->
     <property name="scalac.args.optimise" value=""/>
-  <!-- scalac.args.quickonly are added to quick.* targets but not others (particularly, locker.)
-       This is to facilitate testing new command line options which do not yet exist in starr.
-       Note: These are also used by strap since they may affect JVM target or other and we'd like
-       to be able to test binary stability of features. -->
-    <property name="scalac.args.quickonly" value=""/>
     <property name="scalac.args.all" value="${scalac.args.always} ${scalac.args} ${scalac.args.optimise}"/>
-    <property name="scalac.args.quick" value="${scalac.args.all} ${scalac.args.quickonly}"/>
+    <property name="scalac.args.locker" value="${scalac.args.all}"/>
+    <property name="scalac.args.quick" value="${scalac.args.all}"/>
     <property name="scalac.args.strap" value="${scalac.args.quick}"/>
     <!-- Setting-up Ant contrib tasks -->
     <taskdef resource="net/sf/antcontrib/antlib.xml" classpath="${lib.dir}/ant/ant-contrib.jar"/>
@@ -519,6 +515,10 @@ INITIALISATION
       <path refid="asm.classpath"/>
     </path>
 
+    <path id="locker.compiler.path">
+      <path refid="locker.compiler.build.path"/>
+    </path>
+
     <path id="palo.bin.class.path">
       <pathelement location="${build-palo.dir}/lib/scala-library.jar"/>
       <pathelement location="${build-palo.dir}/lib/scala-reflect.jar"/>
@@ -532,6 +532,9 @@ INITIALISATION
       <path refid="forkjoin.classpath"/>
       <path refid="aux.libs"/>
     </path>
+    <path id="quick.actors.build.path">
+      <path refid="quick.library.build.path"/>
+    </path>
 
     <path id="quick.reflect.build.path">
       <path refid="quick.library.build.path"/>
@@ -544,14 +547,22 @@ INITIALISATION
       <path refid="asm.classpath"/>
     </path>
 
-    <path id="quick.repl.build.path">
+    <path id="quick.compiler.path">
       <path refid="quick.compiler.build.path"/>
+    </path>
+
+    <path id="quick.repl.build.path">
+      <path refid="quick.compiler.path"/>
       <pathelement location="${build-quick.dir}/classes/repl"/>
       <pathelement location="${jline.jar}"/>
     </path>
 
+    <path id="quick.swing.build.path">
+      <path refid="quick.library.build.path"/>
+    </path>
+
     <path id="quick.plugins.build.path">
-      <path refid="quick.compiler.build.path"/>
+      <path refid="quick.compiler.path"/>
       <pathelement location="${build-quick.dir}/classes/continuations-plugin"/>
     </path>
 
@@ -561,7 +572,7 @@ INITIALISATION
     </path>
 
     <path id="quick.scalap.build.path">
-      <path refid="quick.compiler.build.path"/>
+      <path refid="quick.compiler.path"/>
       <pathelement location="${build-quick.dir}/classes/scalap"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
     </path>
@@ -573,19 +584,19 @@ INITIALISATION
     </path>
 
     <path id="quick.scaladoc.build.path">
-      <path refid="quick.compiler.build.path"/>
+      <path refid="quick.compiler.path"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
     </path>
 
     <path id="quick.interactive.build.path">
-      <path refid="quick.compiler.build.path"/>
+      <path refid="quick.compiler.path"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
       <pathelement location="${build-quick.dir}/classes/interactive"/>
     </path>
 
     <path id="sbt.compile.build.path">
-      <path refid="quick.compiler.build.path"/>
+      <path refid="quick.compiler.path"/>
       <pathelement location="${build-quick.dir}/classes/repl"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
       <pathelement location="${build-quick.dir}/classes/interactive"/>
@@ -660,6 +671,10 @@ INITIALISATION
       <pathelement location="${build-pack.dir}/lib/scala-library.jar"/>
       <pathelement location="${build.dir}/manmaker/classes"/>
     </path>
+
+    <patternset id="partest.includes">
+      <include name="**/*.xml"/>
+    </patternset>
 
     <patternset id="lib.includes">
       <include name="**/*.tmpl"/>
@@ -768,6 +783,63 @@ LOCAL DEPENDENCY (FORKJOIN)
     <delete file="${build-libs.dir}/forkjoin.complete" quiet="yes" failonerror="no"/>
   </target>
 
+
+
+  <!-- ===========================================================================
+   STAGED COMPILATION MACROS
+  ============================================================================ -->
+  <macrodef name="staged-scalac" >
+    <attribute name="compiler" default="NOT SET"/> <!-- will use path `@{compiler}.compiler.path` to locate scalac -->
+    <attribute name="stage" default="NOT SET"/>    <!-- current stage (locker, quick, strap) -->
+    <attribute name="project" default="NOT SET"/>  <!-- project: library/reflect/compiler/actors -->
+    <attribute name="srcpath" default=""/>         <!-- needed to compile the library -->
+    <attribute name="args" default=""/>            <!-- additional args -->
+    <attribute name="destproject" default="@{project}"/> <!-- overrides the output directory; used when building multiple projects into the same directory-->
+
+    <sequential>
+      <scalacfork
+        destdir="${build-@{stage}.dir}/classes/@{destproject}"
+        compilerpathref="@{compiler}.compiler.path"
+        srcpath="@{srcpath}"
+        params="${scalac.args.@{stage}} @{args}"
+        srcdir="${src.dir}/@{project}"
+        jvmargs="${scalacfork.jvmargs}">
+        <include name="**/*.scala"/>
+        <compilationpath refid="@{stage}.@{project}.build.path"/>
+      </scalacfork>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="compile-with" >
+    <attribute name="compiler" default="NOT SET"/>
+    <attribute name="stage" default="NOT SET"/>
+    <attribute name="project" default="NOT SET"/>
+    <attribute name="srcpath" default=""/>
+    <attribute name="args" default=""/>
+    <attribute name="includes" default="comp.includes"/>
+    <element name="pre" optional="true"/>
+    <element name="post" optional="true"/>
+
+    <sequential>
+      <stopwatch name="@{stage}.@{project}.timer"/>
+      <mkdir dir="${build-@{stage}.dir}/classes/@{project}"/>
+      <pre/>
+      <staged-scalac compiler="@{compiler}" stage="@{stage}" project="@{project}" srcpath="@{srcpath}" args="@{args}"/>
+      <post/>
+      <propertyfile file="${build-@{stage}.dir}/classes/@{project}/@{project}.properties">
+        <entry key="version.number" value="${version.number}"/>
+        <entry key="maven.version.number" value="${maven.version.number}"/>
+        <entry key="osgi.version.number" value="${osgi.version.number}"/>
+        <entry key="copyright.string" value="${copyright.string}"/>
+      </propertyfile>
+      <copy todir="${build-@{stage}.dir}/classes/@{project}">
+        <fileset dir="${src.dir}/@{project}" includes="@{includes}"/>
+      </copy>
+      <touch file="${build-@{stage}.dir}/@{project}.complete" verbose="no"/>
+      <stopwatch name="@{stage}.@{project}.timer" action="total"/>
+    </sequential>
+  </macrodef>
+
 <!-- ===========================================================================
 LOCAL REFERENCE BUILD (LOCKER)
 ============================================================================ -->
@@ -785,37 +857,18 @@ LOCAL REFERENCE BUILD (LOCKER)
   </target>
 
   <target name="locker.lib" depends="locker.pre-lib" if="locker.library.needed">
-    <stopwatch name="locker.library.timer"/>
-    <mkdir dir="${build-locker.dir}/classes/library"/>
-    <javac
-      srcdir="${src.dir}/library"
-      destdir="${build-locker.dir}/classes/library"
-      includes="**/*.java"
-      target="1.6" source="1.5">
-        <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-        <classpath refid="locker.library.build.path"/>
-    </javac>
-    <scalacfork
-      destdir="${build-locker.dir}/classes/library"
-      compilerpathref="starr.compiler.path"
-      srcpath="${src.dir}/library"
-      params="${scalac.args.all}"
-      srcdir="${src.dir}/library"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="locker.library.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-locker.dir}/classes/library/library.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-locker.dir}/classes/library">
-      <fileset dir="${src.dir}/library" includes="lib.includes"/>
-    </copy>
-    <touch file="${build-locker.dir}/library.complete" verbose="no"/>
-    <stopwatch name="locker.library.timer" action="total"/>
+    <compile-with compiler="starr" stage="locker" project="library" srcpath="${src.dir}/library" includes="lib.includes">
+      <pre>
+        <javac
+          srcdir="${src.dir}/library"
+          destdir="${build-locker.dir}/classes/library"
+          includes="**/*.java"
+          target="1.6" source="1.5">
+            <compilerarg line="${javac.args} -XDignore.symbol.file"/>
+            <classpath refid="locker.library.build.path"/>
+        </javac>
+      </pre>
+    </compile-with>
   </target>
 
 
@@ -826,29 +879,7 @@ LOCAL REFERENCE BUILD (LOCKER)
   </target>
 
   <target name="locker.reflect" depends="locker.pre-reflect" if="locker.reflect.needed">
-    <stopwatch name="locker.reflect.timer"/>
-    <mkdir dir="${build-locker.dir}/classes/reflect"/>
-    <scalacfork
-      destdir="${build-locker.dir}/classes/reflect"
-      compilerpathref="starr.compiler.path"
-      params="${scalac.args.all}"
-      srcdir="${src.dir}/reflect"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="locker.reflect.build.path"/>
-    </scalacfork>
-    <!-- TODO - needed? -->
-    <propertyfile file="${build-locker.dir}/classes/reflect/reflect.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-locker.dir}/classes/reflect">
-      <fileset dir="${src.dir}/reflect" includes="comp.includes"/>
-    </copy>
-    <touch file="${build-locker.dir}/reflect.complete" verbose="no"/>
-    <stopwatch name="locker.reflect.timer" action="total"/>
+    <compile-with compiler="starr" stage="locker" project="reflect"/>
   </target>
 
   <target name="locker.pre-comp" depends="locker.reflect" unless="locker.available">
@@ -859,28 +890,7 @@ LOCAL REFERENCE BUILD (LOCKER)
 
 
   <target name="locker.comp" depends="locker.pre-comp" if="locker.compiler.needed">
-    <stopwatch name="locker.compiler.timer"/>
-    <mkdir dir="${build-locker.dir}/classes/compiler"/>
-    <scalacfork
-      destdir="${build-locker.dir}/classes/compiler"
-      compilerpathref="starr.compiler.path"
-      params="${scalac.args.all}"
-      srcdir="${src.dir}/compiler"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="locker.compiler.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-locker.dir}/classes/compiler/compiler.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-locker.dir}/classes/compiler">
-      <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
-    </copy>
-    <touch file="${build-locker.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="locker.compiler.timer" action="total"/>
+    <compile-with compiler="starr" stage="locker" project="compiler"/>
   </target>
 
   <target name="locker.done" depends="locker.comp">
@@ -1047,54 +1057,29 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.lib" depends="quick.pre-lib" unless="quick.library.available">
-    <stopwatch name="quick.library.timer"/>
-    <mkdir dir="${build-quick.dir}/classes/library"/>
-    <javac
-      srcdir="${src.dir}/library"
-      destdir="${build-quick.dir}/classes/library"
-      includes="**/*.java"
-      target="1.6" source="1.5">
-      <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-      <classpath refid="quick.library.build.path"/>
-    </javac>
-    <javac
-      srcdir="${src.dir}/actors"
-      destdir="${build-quick.dir}/classes/library"
-      includes="**/*.java"
-      target="1.6" source="1.5">
-      <compilerarg line="${javac.args}"/>
-      <classpath refid="quick.library.build.path"/>
-    </javac>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.compiler.build.path"
-      srcpath="${src.dir}/library"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/library"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.library.build.path"/>
-    </scalacfork>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/actors"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.library.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-quick.dir}/classes/library/library.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-quick.dir}/classes/library">
-      <fileset dir="${src.dir}/library" includes="lib.rootdoc.includes"/>
-    </copy>
-    <touch file="${build-quick.dir}/library.complete" verbose="no"/>
-    <stopwatch name="quick.library.timer" action="total"/>
+    <compile-with compiler="locker" stage="quick" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
+      <pre>
+        <javac
+          srcdir="${src.dir}/library"
+          destdir="${build-quick.dir}/classes/library"
+          includes="**/*.java"
+          target="1.6" source="1.5">
+          <compilerarg line="${javac.args} -XDignore.symbol.file"/>
+          <classpath refid="quick.library.build.path"/>
+        </javac>
+        <javac
+          srcdir="${src.dir}/actors"
+          destdir="${build-quick.dir}/classes/library"
+          includes="**/*.java"
+          target="1.6" source="1.5">
+          <compilerarg line="${javac.args}"/>
+          <classpath refid="quick.library.build.path"/>
+        </javac>
+      </pre>
+      <post>
+        <staged-scalac compiler="locker" stage="quick" project="actors" destproject="library"/>
+      </post>
+    </compile-with>
   </target>
 
   <target name="quick.pre-reflect" depends="quick.lib">
@@ -1106,28 +1091,7 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.reflect" depends="quick.pre-reflect" unless="quick.reflect.available">
-    <stopwatch name="quick.reflect.timer"/>
-    <mkdir dir="${build-quick.dir}/classes/reflect"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/reflect"
-      compilerpathref="locker.compiler.build.path"
-      params="${scalac.args.all}"
-      srcdir="${src.dir}/reflect"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.reflect.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-quick.dir}/classes/reflect/reflect.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-quick.dir}/classes/reflect">
-      <fileset dir="${src.dir}/reflect" includes="comp.includes"/>
-    </copy>
-    <touch file="${build-quick.dir}/reflect.complete" verbose="no"/>
-    <stopwatch name="quick.reflect.timer" action="total"/>
+    <compile-with compiler="locker" stage="quick" project="reflect"/>
   </target>
 
   <target name="quick.pre-comp" depends="quick.reflect">
@@ -1137,28 +1101,7 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.comp" depends="quick.pre-comp" unless="quick.compiler.available">
-    <stopwatch name="quick.compiler.timer"/>
-    <mkdir dir="${build-quick.dir}/classes/compiler"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/compiler"
-      compilerpathref="locker.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/compiler"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.compiler.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-quick.dir}/classes/compiler/compiler.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-quick.dir}/classes/compiler">
-      <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
-    </copy>
-    <touch file="${build-quick.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="quick.compiler.timer" action="total"/>
+    <compile-with compiler="locker" stage="quick" project="compiler"/>
   </target>
 
   <target name="quick.pre-repl" depends="quick.comp">
@@ -1168,29 +1111,11 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.repl" depends="quick.pre-repl" unless="quick.repl.available">
-    <mkdir dir="${build-quick.dir}/classes/repl"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/repl"
-      compilerpathref="quick.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/repl"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.repl.build.path"/>
-    </scalacfork>
-    <touch file="${build-quick.dir}/repl.complete" verbose="no"/>
+    <compile-with compiler="locker" stage="quick" project="repl"/>
   </target>
 
   <target name="quick.swing" depends="quick.repl" if="has.java6" unless="quick.compiler.available">
-    <scalacfork
-      destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/swing"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.library.build.path"/>
-    </scalacfork>
+    <compile-with compiler="locker" stage="quick" project="swing"/>
   </target>
 
   <target name="quick.pre-plugins" depends="quick.swing" unless="quick.repl.available">
@@ -1205,7 +1130,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/continuations-plugin"
-      compilerpathref="quick.compiler.build.path"
+      compilerpathref="quick.compiler.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/continuations/plugin"
       jvmargs="${scalacfork.jvmargs}">
@@ -1223,7 +1148,7 @@ QUICK BUILD (QUICK)
     <!-- might split off library part into its own ant target -->
     <scalacfork
       destdir="${build-quick.dir}/classes/continuations-library"
-      compilerpathref="quick.compiler.build.path"
+      compilerpathref="quick.compiler.path"
       params="${scalac.args.quick} -Xplugin-require:continuations -P:continuations:enable"
       srcdir="${src.dir}/continuations/library"
       jvmargs="${scalacfork.jvmargs}">
@@ -1243,19 +1168,7 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.scalacheck" depends="quick.pre-scalacheck" unless="quick.scalacheck.available">
-    <stopwatch name="quick.scalacheck.timer"/>
-    <mkdir dir="${build-quick.dir}/classes/scalacheck"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/scalacheck"
-      compilerpathref="quick.compiler.build.path"
-      params="${scalac.args.quick} -nowarn"
-      srcdir="${src.dir}/scalacheck"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.scalacheck.build.path"/>
-    </scalacfork>
-    <touch file="${build-quick.dir}/scalacheck.complete" verbose="no"/>
-    <stopwatch name="quick.scalacheck.timer" action="total"/>
+    <compile-with compiler="locker" stage="quick" project="scalacheck" args="-nowarn"/>
   </target>
 
   <target name="quick.pre-scalap" depends="quick.scalacheck">
@@ -1265,19 +1178,7 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.scalap" depends="quick.pre-scalap" unless="quick.scalap.available">
-    <stopwatch name="quick.scalap.timer"/>
-    <mkdir dir="${build-quick.dir}/classes/scalap"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/scalap"
-      compilerpathref="quick.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/scalap"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.scalap.build.path"/>
-    </scalacfork>
-    <touch file="${build-quick.dir}/scalap.complete" verbose="no"/>
-    <stopwatch name="quick.scalap.timer" action="total"/>
+    <compile-with compiler="locker" stage="quick" project="scalap"/>
   </target>
 
   <target name="quick.pre-partest" depends="quick.scalap, asm.done">
@@ -1288,34 +1189,24 @@ QUICK BUILD (QUICK)
 
   <target name="quick.partest" depends="quick.pre-partest" unless="quick.partest.available">
     <stopwatch name="quick.partest.timer"/>
-    <mkdir dir="${build-quick.dir}/classes/partest"/>
-    <javac
-      srcdir="${src.dir}/partest"
-      destdir="${build-quick.dir}/classes/partest"
-      target="1.6" source="1.5">
-      <classpath refid="quick.partest.build.path"/>
-      <include name="**/*.java"/>
-      <compilerarg line="${javac.args}"/>
-    </javac>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/partest"
-      compilerpathref="quick.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/partest"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.partest.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-quick.dir}/classes/partest/partest.properties">
-      <entry key="version.number" value="${partest.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-quick.dir}/classes/partest">
-      <fileset dir="${src.dir}/partest">
-        <include name="**/*.xml"/>
-      </fileset>
-    </copy>
-    <touch file="${build-quick.dir}/partest.complete" verbose="no"/>
+      <mkdir dir="${build-quick.dir}/classes/partest"/>
+      <javac
+        srcdir="${src.dir}/partest"
+        destdir="${build-quick.dir}/classes/partest"
+        target="1.6" source="1.5">
+        <classpath refid="quick.partest.build.path"/>
+        <include name="**/*.java"/>
+        <compilerarg line="${javac.args}"/>
+      </javac>
+      <staged-scalac compiler="locker" stage="quick" project="partest"/>
+      <propertyfile file="${build-quick.dir}/classes/partest/partest.properties">
+        <entry key="version.number" value="${partest.version.number}"/>
+        <entry key="copyright.string" value="${copyright.string}"/>
+      </propertyfile>
+      <copy todir="${build-quick.dir}/classes/partest">
+        <fileset dir="${src.dir}/partest" includes="partest.includes"/>
+      </copy>
+      <touch file="${build-quick.dir}/partest.complete" verbose="no"/>
     <stopwatch name="quick.partest.timer" action="total"/>
   </target>
 
@@ -1327,15 +1218,7 @@ QUICK BUILD (QUICK)
 
   <target name="quick.scaladoc" depends="quick.pre-scaladoc" unless="quick.scaladoc.available">
     <mkdir dir="${build-quick.dir}/classes/scaladoc"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/scaladoc"
-      compilerpathref="quick.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/scaladoc"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.scaladoc.build.path"/>
-    </scalacfork>
+    <staged-scalac compiler="locker" stage="quick" project="scaladoc"/>
     <propertyfile file="${build-quick.dir}/classes/scaladoc/scaladoc.properties">
       <entry key="version.number" value="${scaladoc.version.number}"/>
       <entry key="copyright.string" value="${copyright.string}"/>
@@ -1353,17 +1236,7 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.interactive" depends="quick.pre-interactive" unless="quick.interactive.available">
-    <mkdir dir="${build-quick.dir}/classes/interactive"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/interactive"
-      compilerpathref="quick.compiler.build.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/interactive"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.interactive.build.path"/>
-    </scalacfork>
-    <touch file="${build-quick.dir}/interactive.complete" verbose="no"/>
+    <compile-with compiler="locker" stage="quick" project="interactive"/>
   </target>
 
   <target name="quick.pre-bin" depends="quick.interactive">
@@ -1687,7 +1560,7 @@ OSGi Artifacts
     <mkdir dir="${test.osgi.classes}"/>
     <scalacfork
       destdir="${test.osgi.classes}"
-      compilerpathref="quick.compiler.build.path"
+      compilerpathref="quick.compiler.path"
       params="${scalac.args.quick}"
       srcdir="${test.osgi.src}"
       jvmargs="${scalacfork.jvmargs}">
@@ -1734,54 +1607,29 @@ BOOTSTRAPPING BUILD (STRAP)
   </target>
 
   <target name="strap.lib" depends="strap.pre-lib" unless="strap.library.available">
-    <stopwatch name="strap.library.timer"/>
-    <mkdir dir="${build-strap.dir}/classes/library"/>
-    <javac
-      srcdir="${src.dir}/library"
-      destdir="${build-strap.dir}/classes/library"
-      includes="**/*.java"
-      target="1.6" source="1.5">
-      <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-      <classpath refid="strap.library.build.path"/>
-    </javac>
-    <javac
-      srcdir="${src.dir}/actors"
-      destdir="${build-strap.dir}/classes/library"
-      includes="**/*.java"
-      target="1.6" source="1.5">
-      <compilerarg line="${javac.args}"/>
-      <classpath refid="strap.library.build.path"/>
-    </javac>
-    <scalacfork
-      destdir="${build-strap.dir}/classes/library"
-      compilerpathref="pack.compiler.path"
-      srcpath="${src.dir}/library"
-      params="${scalac.args.strap}"
-      srcdir="${src.dir}/library"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="strap.library.build.path"/>
-    </scalacfork>
-    <scalacfork
-      destdir="${build-strap.dir}/classes/library"
-      compilerpathref="pack.compiler.path"
-      params="${scalac.args.strap}"
-      srcdir="${src.dir}/actors"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="strap.library.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-strap.dir}/classes/library/library.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-strap.dir}/classes/library">
-      <fileset dir="${src.dir}/library" includes="lib.includes"/>
-    </copy>
-    <touch file="${build-strap.dir}/library.complete" verbose="no"/>
-    <stopwatch name="strap.library.timer" action="total"/>
+    <compile-with compiler="quick" stage="strap" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
+      <pre>
+        <javac
+          srcdir="${src.dir}/library"
+          destdir="${build-strap.dir}/classes/library"
+          includes="**/*.java"
+          target="1.6" source="1.5">
+          <compilerarg line="${javac.args} -XDignore.symbol.file"/>
+          <classpath refid="strap.library.build.path"/>
+        </javac>
+        <javac
+          srcdir="${src.dir}/actors"
+          destdir="${build-strap.dir}/classes/library"
+          includes="**/*.java"
+          target="1.6" source="1.5">
+          <compilerarg line="${javac.args}"/>
+          <classpath refid="strap.library.build.path"/>
+        </javac>
+      </pre>
+      <post>
+        <staged-scalac compiler="quick" stage="strap" project="actors" destproject="library"/>
+      </post>
+    </compile-with>
   </target>
 
   <target name="strap.pre-reflect" depends="strap.lib">
@@ -1793,28 +1641,7 @@ BOOTSTRAPPING BUILD (STRAP)
   </target>
 
   <target name="strap.reflect" depends="strap.pre-reflect" unless="strap.reflect.available">
-    <stopwatch name="strap.reflect.timer"/>
-    <mkdir dir="${build-strap.dir}/classes/reflect"/>
-    <scalacfork
-      destdir="${build-strap.dir}/classes/reflect"
-      compilerpathref="pack.compiler.path"
-      params="${scalac.args.all}"
-      srcdir="${src.dir}/reflect"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="strap.reflect.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-strap.dir}/classes/reflect/reflect.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-strap.dir}/classes/reflect">
-      <fileset dir="${src.dir}/reflect" includes="comp.includes"/>
-    </copy>
-    <touch file="${build-strap.dir}/reflect.complete" verbose="no"/>
-    <stopwatch name="strap.reflect.timer" action="total"/>
+    <compile-with compiler="pack" stage="strap" project="reflect"/>
   </target>
 
   <target name="strap.pre-comp" depends="strap.reflect">
@@ -1824,28 +1651,7 @@ BOOTSTRAPPING BUILD (STRAP)
   </target>
 
   <target name="strap.comp" depends="strap.pre-comp" unless="strap.compiler.available">
-    <stopwatch name="strap.compiler.timer"/>
-    <mkdir dir="${build-strap.dir}/classes/compiler"/>
-    <scalacfork
-      destdir="${build-strap.dir}/classes/compiler"
-      compilerpathref="pack.compiler.path"
-      params="${scalac.args.strap}"
-      srcdir="${src.dir}/compiler"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="strap.compiler.build.path"/>
-    </scalacfork>
-    <propertyfile file="${build-strap.dir}/classes/compiler/compiler.properties">
-      <entry key="version.number" value="${version.number}"/>
-      <entry key="maven.version.number" value="${maven.version.number}"/>
-      <entry key="osgi.version.number" value="${osgi.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-strap.dir}/classes/compiler">
-      <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
-    </copy>
-    <touch file="${build-strap.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="strap.compiler.timer" action="total"/>
+    <compile-with compiler="pack" stage="strap" project="compiler"/>
   </target>
 
   <target name="strap.done" depends="strap.comp"/>
@@ -1905,7 +1711,7 @@ SBT Compiler Interface
     <mkdir dir="${build-sbt.dir}/classes"/>
     <scalacfork
       destdir="${build-sbt.dir}/classes"
-      compilerpathref="quick.compiler.build.path"
+      compilerpathref="quick.compiler.path"
       params="${scalac.args.quick}"
       srcdir="${sbt.src.dir}"
       jvmargs="${scalacfork.jvmargs}">
@@ -2670,7 +2476,7 @@ POSITIONS
     </if>
     <scalacfork
       destdir=""
-      compilerpathref="locker.compiler.build.path"
+      compilerpathref="locker.compiler.path"
       srcpath="${srcdir}"
       params="-Xprint-pos -Yide-debug"
       srcdir="${srcdir}"
