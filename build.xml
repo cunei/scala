@@ -422,7 +422,7 @@ INITIALISATION
      </echo>
   </target>
 
-  <target name="init" depends="init.jars, init.maven.jars, init.version.done, init.fail.bad.jdk, init.warn.jdk7, init.extra.tasks">
+  <target name="init" depends="init.jars, init.maven.jars, init.version.done, init.fail.bad.jdk, init.warn.jdk7, init.extra.tasks, init.sbt">
     <property name="scalac.args.always" value="-Yreify-copypaste" />
   <!-- scalac.args.optimise is selectively overridden in certain antcall tasks. -->
     <property name="scalac.args.optimise" value=""/>
@@ -1985,8 +1985,8 @@ LIBRARIES (Forkjoin, ASM)
 SBT Compiler Interface
 ============================================================================ -->
 
-  <target name="sbt.start" depends="init">
-    <!-- TODO - Put this in init?   Allow this to be overriden simply -->
+  <target name="init.sbt">
+    <!-- Allow this to be overriden simply -->
     <property name="sbt.latest.version" value="0.12.2"/>
 
 
@@ -2013,7 +2013,7 @@ SBT Compiler Interface
 
   </target>
 
-  <target name="sbt.libs" depends="sbt.start" unless="sbt.available">
+  <target name="sbt.libs" depends="init" unless="sbt.available">
     <get src="${sbt.interface.url}" dest="${sbt.interface.jar}"/>
     <get src="${sbt.interface.src.url}" dest="${sbt.interface.src.jar}"/>
     <!-- Explode sources -->
