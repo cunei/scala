@@ -788,6 +788,24 @@ LOCAL DEPENDENCY (FORKJOIN)
   <!-- ===========================================================================
    STAGED COMPILATION MACROS
   ============================================================================ -->
+
+  <macrodef name="staged-javac" >
+    <attribute name="stage" default="NOT SET"/>    <!-- current stage (locker, quick, strap) -->
+    <attribute name="project" default="NOT SET"/>  <!-- project: library/reflect/compiler/actors -->
+    <attribute name="destproject" default="@{project}"/> <!-- overrides the output directory; used when building multiple projects into the same directory-->
+
+    <sequential>
+      <javac
+        srcdir="${src.dir}/@{project}"
+        destdir="${build-@{stage}.dir}/classes/@{destproject}"
+        includes="**/*.java"
+        target="1.6" source="1.5">
+          <compilerarg line="${javac.args} -XDignore.symbol.file"/>
+          <classpath refid="@{stage}.@{destproject}.build.path"/>
+      </javac>
+    </sequential>
+  </macrodef>
+
   <macrodef name="staged-scalac" >
     <attribute name="compiler" default="NOT SET"/> <!-- will use path `@{compiler}.compiler.path` to locate scalac -->
     <attribute name="stage" default="NOT SET"/>    <!-- current stage (locker, quick, strap) -->
@@ -859,14 +877,7 @@ LOCAL REFERENCE BUILD (LOCKER)
   <target name="locker.lib" depends="locker.pre-lib" if="locker.library.needed">
     <compile-with compiler="starr" stage="locker" project="library" srcpath="${src.dir}/library" includes="lib.includes">
       <pre>
-        <javac
-          srcdir="${src.dir}/library"
-          destdir="${build-locker.dir}/classes/library"
-          includes="**/*.java"
-          target="1.6" source="1.5">
-            <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-            <classpath refid="locker.library.build.path"/>
-        </javac>
+        <staged-javac stage="locker" project="library"/>
       </pre>
     </compile-with>
   </target>
@@ -1059,22 +1070,8 @@ QUICK BUILD (QUICK)
   <target name="quick.lib" depends="quick.pre-lib" unless="quick.library.available">
     <compile-with compiler="locker" stage="quick" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
-        <javac
-          srcdir="${src.dir}/library"
-          destdir="${build-quick.dir}/classes/library"
-          includes="**/*.java"
-          target="1.6" source="1.5">
-          <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-          <classpath refid="quick.library.build.path"/>
-        </javac>
-        <javac
-          srcdir="${src.dir}/actors"
-          destdir="${build-quick.dir}/classes/library"
-          includes="**/*.java"
-          target="1.6" source="1.5">
-          <compilerarg line="${javac.args}"/>
-          <classpath refid="quick.library.build.path"/>
-        </javac>
+        <staged-javac stage="quick" project="library"/>
+        <staged-javac stage="quick" project="actors" destproject="library"/>
       </pre>
       <post>
         <staged-scalac compiler="locker" stage="quick" project="actors" destproject="library"/>
@@ -1609,22 +1606,8 @@ BOOTSTRAPPING BUILD (STRAP)
   <target name="strap.lib" depends="strap.pre-lib" unless="strap.library.available">
     <compile-with compiler="quick" stage="strap" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
-        <javac
-          srcdir="${src.dir}/library"
-          destdir="${build-strap.dir}/classes/library"
-          includes="**/*.java"
-          target="1.6" source="1.5">
-          <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-          <classpath refid="strap.library.build.path"/>
-        </javac>
-        <javac
-          srcdir="${src.dir}/actors"
-          destdir="${build-strap.dir}/classes/library"
-          includes="**/*.java"
-          target="1.6" source="1.5">
-          <compilerarg line="${javac.args}"/>
-          <classpath refid="strap.library.build.path"/>
-        </javac>
+        <staged-javac stage="strap" project="library"/>
+        <staged-javac stage="strap" project="actors" destproject="library"/>
       </pre>
       <post>
         <staged-scalac compiler="quick" stage="strap" project="actors" destproject="library"/>
