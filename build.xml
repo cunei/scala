@@ -202,9 +202,9 @@ PROPERTIES
   <property name="javac.args" value=""/>
 
   <!-- Sets location of pre-compiled libraries -->
-  <property name="lib.starr.jar" value="${lib.dir}/scala-library.jar"/>
+  <property name="library.starr.jar" value="${lib.dir}/scala-library.jar"/>
   <property name="reflect.starr.jar" value="${lib.dir}/scala-reflect.jar"/>
-  <property name="comp.starr.jar" value="${lib.dir}/scala-compiler.jar"/>
+  <property name="compiler.starr.jar" value="${lib.dir}/scala-compiler.jar"/>
   <property name="jline.jar" value="${lib.dir}/jline.jar"/>
   <property name="ant.jar" value="${ant.home}/lib/ant.jar"/>
   <property name="scalacheck.jar" value="${lib.dir}/scalacheck.jar"/>
@@ -484,9 +484,9 @@ INITIALISATION
 
   <!-- Define tasks that can be run with Starr -->
     <path id="starr.compiler.path">
-      <pathelement location="${lib.starr.jar}"/>
+      <pathelement location="${library.starr.jar}"/>
       <pathelement location="${reflect.starr.jar}"/>
-      <pathelement location="${comp.starr.jar}"/>
+      <pathelement location="${compiler.starr.jar}"/>
       <path refid="aux.libs"/>
       <path refid="starr.dep.libs"/>
     </path>
@@ -502,18 +502,18 @@ INITIALISATION
     <!-- What to have on the compilation path when compiling during certain phases -->
 
     <!-- LOCKER -->
-    <path id="locker.lib.build.path">
+    <path id="locker.library.build.path">
       <pathelement location="${build-locker.dir}/classes/library"/>
       <path refid="forkjoin.classpath"/>
       <path refid="aux.libs"/>
     </path>
 
     <path id="locker.reflect.build.path">
-      <path refid="locker.lib.build.path"/>
+      <path refid="locker.library.build.path"/>
       <pathelement location="${build-locker.dir}/classes/reflect"/>
     </path>
 
-    <path id="locker.comp.build.path">
+    <path id="locker.compiler.build.path">
       <path refid="locker.reflect.build.path"/>
       <pathelement location="${build-locker.dir}/classes/compiler"/>
       <path refid="asm.classpath"/>
@@ -527,31 +527,31 @@ INITIALISATION
     </path>
 
     <!-- QUICK -->
-    <path id="quick.lib.build.path">
+    <path id="quick.library.build.path">
       <pathelement location="${build-quick.dir}/classes/library"/>
       <path refid="forkjoin.classpath"/>
       <path refid="aux.libs"/>
     </path>
 
     <path id="quick.reflect.build.path">
-      <path refid="quick.lib.build.path"/>
+      <path refid="quick.library.build.path"/>
       <pathelement location="${build-quick.dir}/classes/reflect"/>
     </path>
 
-    <path id="quick.comp.build.path">
+    <path id="quick.compiler.build.path">
       <path refid="quick.reflect.build.path"/>
       <pathelement location="${build-quick.dir}/classes/compiler"/>
       <path refid="asm.classpath"/>
     </path>
 
     <path id="quick.repl.build.path">
-      <path refid="quick.comp.build.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/repl"/>
       <pathelement location="${jline.jar}"/>
     </path>
 
     <path id="quick.plugins.build.path">
-      <path refid="quick.comp.build.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/continuations-plugin"/>
     </path>
 
@@ -561,7 +561,7 @@ INITIALISATION
     </path>
 
     <path id="quick.scalap.build.path">
-      <path refid="quick.comp.build.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/scalap"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
     </path>
@@ -573,19 +573,19 @@ INITIALISATION
     </path>
 
     <path id="quick.scaladoc.build.path">
-      <path refid="quick.comp.build.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
     </path>
 
     <path id="quick.interactive.build.path">
-      <path refid="quick.comp.build.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
       <pathelement location="${build-quick.dir}/classes/interactive"/>
     </path>
 
     <path id="sbt.compile.build.path">
-      <path refid="quick.comp.build.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/repl"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
       <pathelement location="${build-quick.dir}/classes/interactive"/>
@@ -628,25 +628,25 @@ INITIALISATION
     </path>
 
     <!-- STRAP -->
-    <path id="strap.lib.build.path">
+    <path id="strap.library.build.path">
       <pathelement location="${build-strap.dir}/classes/library"/>
       <path refid="forkjoin.classpath"/>
       <path refid="aux.libs"/>
     </path>
 
     <path id="strap.reflect.build.path">
-      <path refid="strap.lib.build.path"/>
+      <path refid="strap.library.build.path"/>
       <pathelement location="${build-strap.dir}/classes/reflect"/>
     </path>
 
-    <path id="strap.comp.build.path">
+    <path id="strap.compiler.build.path">
       <path refid="strap.reflect.build.path"/>
       <pathelement location="${build-strap.dir}/classes/compiler"/>
       <path refid="asm.classpath"/>
     </path>
 
     <!-- MISC -->
-    <path id="test.osgi.comp.build.path">
+    <path id="test.osgi.compiler.build.path">
       <pathelement location="${test.osgi.classes}"/>
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-library.jar"/>
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-reflect.jar"/>
@@ -779,13 +779,13 @@ LOCAL REFERENCE BUILD (LOCKER)
   </target>
 
   <target name="locker.pre-lib" depends="locker.start" unless="locker.available">
-    <condition property="locker.lib.needed">
+    <condition property="locker.library.needed">
       <not><available file="${build-locker.dir}/library.complete"/></not>
     </condition>
   </target>
 
-  <target name="locker.lib" depends="locker.pre-lib" if="locker.lib.needed">
-    <stopwatch name="locker.lib.timer"/>
+  <target name="locker.lib" depends="locker.pre-lib" if="locker.library.needed">
+    <stopwatch name="locker.library.timer"/>
     <mkdir dir="${build-locker.dir}/classes/library"/>
     <javac
       srcdir="${src.dir}/library"
@@ -793,7 +793,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       includes="**/*.java"
       target="1.6" source="1.5">
         <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-        <classpath refid="locker.lib.build.path"/>
+        <classpath refid="locker.library.build.path"/>
     </javac>
     <scalacfork
       destdir="${build-locker.dir}/classes/library"
@@ -803,7 +803,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       srcdir="${src.dir}/library"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="locker.lib.build.path"/>
+      <compilationpath refid="locker.library.build.path"/>
     </scalacfork>
     <propertyfile file="${build-locker.dir}/classes/library/library.properties">
       <entry key="version.number" value="${version.number}"/>
@@ -815,7 +815,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       <fileset dir="${src.dir}/library" includes="lib.includes"/>
     </copy>
     <touch file="${build-locker.dir}/library.complete" verbose="no"/>
-    <stopwatch name="locker.lib.timer" action="total"/>
+    <stopwatch name="locker.library.timer" action="total"/>
   </target>
 
 
@@ -852,14 +852,14 @@ LOCAL REFERENCE BUILD (LOCKER)
   </target>
 
   <target name="locker.pre-comp" depends="locker.reflect" unless="locker.available">
-    <condition property="locker.comp.needed">
+    <condition property="locker.compiler.needed">
       <not><available file="${build-locker.dir}/compiler.complete"/></not>
     </condition>
   </target>
 
 
-  <target name="locker.comp" depends="locker.pre-comp" if="locker.comp.needed">
-    <stopwatch name="locker.comp.timer"/>
+  <target name="locker.comp" depends="locker.pre-comp" if="locker.compiler.needed">
+    <stopwatch name="locker.compiler.timer"/>
     <mkdir dir="${build-locker.dir}/classes/compiler"/>
     <scalacfork
       destdir="${build-locker.dir}/classes/compiler"
@@ -868,7 +868,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       srcdir="${src.dir}/compiler"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="locker.comp.build.path"/>
+      <compilationpath refid="locker.compiler.build.path"/>
     </scalacfork>
     <propertyfile file="${build-locker.dir}/classes/compiler/compiler.properties">
       <entry key="version.number" value="${version.number}"/>
@@ -880,7 +880,7 @@ LOCAL REFERENCE BUILD (LOCKER)
       <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
     </copy>
     <touch file="${build-locker.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="locker.comp.timer" action="total"/>
+    <stopwatch name="locker.compiler.timer" action="total"/>
   </target>
 
   <target name="locker.done" depends="locker.comp">
@@ -892,14 +892,14 @@ LOCAL REFERENCE BUILD (LOCKER)
   </target>
 
   <target name="locker.unlock.pre-lib">
-    <uptodate property="locker.lib.available" targetfile="${build-locker.dir}/library.complete">
+    <uptodate property="locker.library.available" targetfile="${build-locker.dir}/library.complete">
       <srcfiles dir="${src.dir}">
         <include name="library/**"/>
       </srcfiles>
     </uptodate>
   </target>
 
-  <target name="locker.unlock.lib" depends="locker.unlock.pre-lib" unless="locker.lib.available">
+  <target name="locker.unlock.lib" depends="locker.unlock.pre-lib" unless="locker.library.available">
     <delete file="${build-locker.dir}/library.complete"/>
   </target>
 
@@ -916,14 +916,14 @@ LOCAL REFERENCE BUILD (LOCKER)
   </target>
 
   <target name="locker.unlock.pre-comp" depends="locker.unlock.reflect">
-    <uptodate property="locker.comp.available" targetfile="${build-locker.dir}/compiler.complete">
+    <uptodate property="locker.compiler.available" targetfile="${build-locker.dir}/compiler.complete">
       <srcfiles dir="${src.dir}">
         <include name="compiler/**"/>
       </srcfiles>
     </uptodate>
   </target>
 
-  <target name="locker.unlock.comp" depends="locker.unlock.pre-comp" unless="locker.comp.available">
+  <target name="locker.unlock.comp" depends="locker.unlock.pre-comp" unless="locker.compiler.available">
     <delete file="${build-locker.dir}/compiler.complete"/>
   </target>
 
@@ -939,12 +939,12 @@ PACKED LOCKER BUILD (PALO)
 
   <target name="palo.pre-lib" depends="palo.start">
     <uptodate
-      property="palo.lib.available"
+      property="palo.library.available"
       targetfile="${build-palo.dir}/lib/scala-library.jar"
       srcfile="${build-locker.dir}/library.complete"/>
   </target>
 
-  <target name="palo.lib" depends="palo.pre-lib" unless="palo.lib.available">
+  <target name="palo.lib" depends="palo.pre-lib" unless="palo.library.available">
     <mkdir dir="${build-palo.dir}/lib"/>
     <jar destfile="${build-palo.dir}/lib/scala-library.jar">
       <fileset dir="${build-locker.dir}/classes/library"/>
@@ -968,12 +968,12 @@ PACKED LOCKER BUILD (PALO)
 
   <target name="palo.pre-comp" depends="palo.reflect">
     <uptodate
-      property="palo.comp.available"
+      property="palo.compiler.available"
       targetfile="${build-palo.dir}/lib/scala-compiler.jar"
       srcfile="${build-locker.dir}/compiler.complete"/>
   </target>
 
-  <target name="palo.comp" depends="palo.pre-comp" unless="palo.comp.available">
+  <target name="palo.comp" depends="palo.pre-comp" unless="palo.compiler.available">
     <mkdir dir="${build-palo.dir}/lib"/>
     <jar destfile="${build-palo.dir}/lib/scala-compiler.jar" manifest="${basedir}/META-INF/MANIFEST.MF">
       <fileset dir="${build-locker.dir}/classes/compiler"/>
@@ -1037,7 +1037,7 @@ QUICK BUILD (QUICK)
   <target name="quick.start" depends="locker.done"/>
 
   <target name="quick.pre-lib" depends="quick.start">
-    <uptodate property="quick.lib.available" targetfile="${build-quick.dir}/library.complete">
+    <uptodate property="quick.library.available" targetfile="${build-quick.dir}/library.complete">
       <srcfiles dir="${src.dir}">
         <include name="library/**"/>
         <include name="swing/**"/>
@@ -1046,8 +1046,8 @@ QUICK BUILD (QUICK)
     </uptodate>
   </target>
 
-  <target name="quick.lib" depends="quick.pre-lib" unless="quick.lib.available">
-    <stopwatch name="quick.lib.timer"/>
+  <target name="quick.lib" depends="quick.pre-lib" unless="quick.library.available">
+    <stopwatch name="quick.library.timer"/>
     <mkdir dir="${build-quick.dir}/classes/library"/>
     <javac
       srcdir="${src.dir}/library"
@@ -1055,7 +1055,7 @@ QUICK BUILD (QUICK)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-      <classpath refid="quick.lib.build.path"/>
+      <classpath refid="quick.library.build.path"/>
     </javac>
     <javac
       srcdir="${src.dir}/actors"
@@ -1063,26 +1063,26 @@ QUICK BUILD (QUICK)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args}"/>
-      <classpath refid="quick.lib.build.path"/>
+      <classpath refid="quick.library.build.path"/>
     </javac>
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.comp.build.path"
+      compilerpathref="locker.compiler.build.path"
       srcpath="${src.dir}/library"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/library"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="quick.lib.build.path"/>
+      <compilationpath refid="quick.library.build.path"/>
     </scalacfork>
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.comp.build.path"
+      compilerpathref="locker.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/actors"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="quick.lib.build.path"/>
+      <compilationpath refid="quick.library.build.path"/>
     </scalacfork>
     <propertyfile file="${build-quick.dir}/classes/library/library.properties">
       <entry key="version.number" value="${version.number}"/>
@@ -1094,7 +1094,7 @@ QUICK BUILD (QUICK)
       <fileset dir="${src.dir}/library" includes="lib.rootdoc.includes"/>
     </copy>
     <touch file="${build-quick.dir}/library.complete" verbose="no"/>
-    <stopwatch name="quick.lib.timer" action="total"/>
+    <stopwatch name="quick.library.timer" action="total"/>
   </target>
 
   <target name="quick.pre-reflect" depends="quick.lib">
@@ -1110,7 +1110,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/reflect"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/reflect"
-      compilerpathref="locker.comp.build.path"
+      compilerpathref="locker.compiler.build.path"
       params="${scalac.args.all}"
       srcdir="${src.dir}/reflect"
       jvmargs="${scalacfork.jvmargs}">
@@ -1131,22 +1131,22 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.pre-comp" depends="quick.reflect">
-    <uptodate property="quick.comp.available" targetfile="${build-quick.dir}/compiler.complete">
+    <uptodate property="quick.compiler.available" targetfile="${build-quick.dir}/compiler.complete">
       <srcfiles dir="${src.dir}/compiler"/>
     </uptodate>
   </target>
 
-  <target name="quick.comp" depends="quick.pre-comp" unless="quick.comp.available">
-    <stopwatch name="quick.comp.timer"/>
+  <target name="quick.comp" depends="quick.pre-comp" unless="quick.compiler.available">
+    <stopwatch name="quick.compiler.timer"/>
     <mkdir dir="${build-quick.dir}/classes/compiler"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/compiler"
-      compilerpathref="locker.comp.build.path"
+      compilerpathref="locker.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/compiler"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="quick.comp.build.path"/>
+      <compilationpath refid="quick.compiler.build.path"/>
     </scalacfork>
     <propertyfile file="${build-quick.dir}/classes/compiler/compiler.properties">
       <entry key="version.number" value="${version.number}"/>
@@ -1158,7 +1158,7 @@ QUICK BUILD (QUICK)
       <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
     </copy>
     <touch file="${build-quick.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="quick.comp.timer" action="total"/>
+    <stopwatch name="quick.compiler.timer" action="total"/>
   </target>
 
   <target name="quick.pre-repl" depends="quick.comp">
@@ -1171,7 +1171,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/repl"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/repl"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/repl"
       jvmargs="${scalacfork.jvmargs}">
@@ -1181,15 +1181,15 @@ QUICK BUILD (QUICK)
     <touch file="${build-quick.dir}/repl.complete" verbose="no"/>
   </target>
 
-  <target name="quick.swing" depends="quick.repl" if="has.java6" unless="quick.comp.available">
+  <target name="quick.swing" depends="quick.repl" if="has.java6" unless="quick.compiler.available">
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
-      compilerpathref="locker.comp.build.path"
+      compilerpathref="locker.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/swing"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="quick.lib.build.path"/>
+      <compilationpath refid="quick.library.build.path"/>
     </scalacfork>
   </target>
 
@@ -1205,7 +1205,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/continuations-plugin"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/continuations/plugin"
       jvmargs="${scalacfork.jvmargs}">
@@ -1223,12 +1223,12 @@ QUICK BUILD (QUICK)
     <!-- might split off library part into its own ant target -->
     <scalacfork
       destdir="${build-quick.dir}/classes/continuations-library"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick} -Xplugin-require:continuations -P:continuations:enable"
       srcdir="${src.dir}/continuations/library"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="quick.lib.build.path"/>
+      <compilationpath refid="quick.library.build.path"/>
       <compilerarg value="-Xpluginsdir"/>
       <compilerarg file="${build-quick.dir}/misc/scala-devel/plugins"/>
     </scalacfork>
@@ -1247,7 +1247,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/scalacheck"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/scalacheck"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick} -nowarn"
       srcdir="${src.dir}/scalacheck"
       jvmargs="${scalacfork.jvmargs}">
@@ -1269,7 +1269,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/scalap"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/scalap"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/scalap"
       jvmargs="${scalacfork.jvmargs}">
@@ -1299,7 +1299,7 @@ QUICK BUILD (QUICK)
     </javac>
     <scalacfork
       destdir="${build-quick.dir}/classes/partest"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/partest"
       jvmargs="${scalacfork.jvmargs}">
@@ -1329,7 +1329,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/scaladoc"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/scaladoc"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/scaladoc"
       jvmargs="${scalacfork.jvmargs}">
@@ -1356,7 +1356,7 @@ QUICK BUILD (QUICK)
     <mkdir dir="${build-quick.dir}/classes/interactive"/>
     <scalacfork
       destdir="${build-quick.dir}/classes/interactive"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${src.dir}/interactive"
       jvmargs="${scalacfork.jvmargs}">
@@ -1368,7 +1368,7 @@ QUICK BUILD (QUICK)
 
   <target name="quick.pre-bin" depends="quick.interactive">
     <condition property="quick.bin.available">
-      <isset property="quick.comp.available"/>
+      <isset property="quick.compiler.available"/>
     </condition>
   </target>
 
@@ -1421,12 +1421,12 @@ PACKED QUICK BUILD (PACK)
 
   <target name="pack.pre-lib" depends="pack.start">
     <uptodate
-      property="pack.lib.available"
+      property="pack.library.available"
       targetfile="${build-pack.dir}/lib/scala-library.jar"
       srcfile="${build-quick.dir}/library.complete"/>
   </target>
 
-  <target name="pack.lib" depends="pack.pre-lib" unless="pack.lib.available">
+  <target name="pack.lib" depends="pack.pre-lib" unless="pack.library.available">
     <mkdir dir="${build-pack.dir}/lib"/>
     <!-- First copy maven dependencies -->
     <copy todir="${build-pack.dir}/lib">
@@ -1472,12 +1472,12 @@ PACKED QUICK BUILD (PACK)
 
   <target name="pack.pre-comp" depends="pack.reflect">
     <uptodate
-      property="pack.comp.available"
+      property="pack.compiler.available"
       targetfile="${build-pack.dir}/lib/scala-compiler.jar"
       srcfile="${build-quick.dir}/compiler.complete"/>
   </target>
 
-  <target name="pack.comp" depends="pack.pre-comp" unless="pack.comp.available">
+  <target name="pack.comp" depends="pack.pre-comp" unless="pack.compiler.available">
     <mkdir dir="${build-pack.dir}/META-INF"/>
     <copy file="META-INF/MANIFEST.MF" toDir="${build-pack.dir}/META-INF"/>
     <manifest file="${build-pack.dir}/META-INF/MANIFEST.MF" mode="update">
@@ -1683,26 +1683,26 @@ OSGi Artifacts
   </target>
 
   <target name="test.osgi.comp" depends="test.osgi.init, quick.done" unless="test.osgi.available">
-    <stopwatch name="test.osgi.comp.timer"/>
+    <stopwatch name="test.osgi.compiler.timer"/>
     <mkdir dir="${test.osgi.classes}"/>
     <scalacfork
       destdir="${test.osgi.classes}"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${test.osgi.src}"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="test.osgi.comp.build.path"/>
+      <compilationpath refid="test.osgi.compiler.build.path"/>
     </scalacfork>
     <touch file="${build-osgi.dir}/test-compile.complete" verbose="no"/>
-    <stopwatch name="test.osgi.comp.timer" action="total"/>
+    <stopwatch name="test.osgi.compiler.timer" action="total"/>
   </target>
 
   <target name="test.osgi" depends="test.osgi.comp">
     <stopwatch name="test.osgi.timer"/>
     <mkdir dir="${test.osgi.classes}"/>
     <junit fork="yes" haltonfailure="yes">
-      <classpath refid="test.osgi.comp.build.path"/>
+      <classpath refid="test.osgi.compiler.build.path"/>
       <batchtest fork="yes" todir="${build-osgi.dir}">
         <fileset dir="${test.osgi.classes}">
           <include name="**/*Test.class"/>
@@ -1724,7 +1724,7 @@ BOOTSTRAPPING BUILD (STRAP)
   <target name="strap.start" depends="pack.done"/>
 
   <target name="strap.pre-lib" depends="strap.start">
-    <uptodate property="strap.lib.available" targetfile="${build-strap.dir}/library.complete">
+    <uptodate property="strap.library.available" targetfile="${build-strap.dir}/library.complete">
       <srcfiles dir="${src.dir}">
         <include name="library/**"/>
         <include name="swing/**"/>
@@ -1733,8 +1733,8 @@ BOOTSTRAPPING BUILD (STRAP)
     </uptodate>
   </target>
 
-  <target name="strap.lib" depends="strap.pre-lib" unless="strap.lib.available">
-    <stopwatch name="strap.lib.timer"/>
+  <target name="strap.lib" depends="strap.pre-lib" unless="strap.library.available">
+    <stopwatch name="strap.library.timer"/>
     <mkdir dir="${build-strap.dir}/classes/library"/>
     <javac
       srcdir="${src.dir}/library"
@@ -1742,7 +1742,7 @@ BOOTSTRAPPING BUILD (STRAP)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-      <classpath refid="strap.lib.build.path"/>
+      <classpath refid="strap.library.build.path"/>
     </javac>
     <javac
       srcdir="${src.dir}/actors"
@@ -1750,7 +1750,7 @@ BOOTSTRAPPING BUILD (STRAP)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args}"/>
-      <classpath refid="strap.lib.build.path"/>
+      <classpath refid="strap.library.build.path"/>
     </javac>
     <scalacfork
       destdir="${build-strap.dir}/classes/library"
@@ -1760,7 +1760,7 @@ BOOTSTRAPPING BUILD (STRAP)
       srcdir="${src.dir}/library"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="strap.lib.build.path"/>
+      <compilationpath refid="strap.library.build.path"/>
     </scalacfork>
     <scalacfork
       destdir="${build-strap.dir}/classes/library"
@@ -1769,7 +1769,7 @@ BOOTSTRAPPING BUILD (STRAP)
       srcdir="${src.dir}/actors"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="strap.lib.build.path"/>
+      <compilationpath refid="strap.library.build.path"/>
     </scalacfork>
     <propertyfile file="${build-strap.dir}/classes/library/library.properties">
       <entry key="version.number" value="${version.number}"/>
@@ -1781,7 +1781,7 @@ BOOTSTRAPPING BUILD (STRAP)
       <fileset dir="${src.dir}/library" includes="lib.includes"/>
     </copy>
     <touch file="${build-strap.dir}/library.complete" verbose="no"/>
-    <stopwatch name="strap.lib.timer" action="total"/>
+    <stopwatch name="strap.library.timer" action="total"/>
   </target>
 
   <target name="strap.pre-reflect" depends="strap.lib">
@@ -1818,13 +1818,13 @@ BOOTSTRAPPING BUILD (STRAP)
   </target>
 
   <target name="strap.pre-comp" depends="strap.reflect">
-    <uptodate property="strap.comp.available" targetfile="${build-strap.dir}/compiler.complete">
+    <uptodate property="strap.compiler.available" targetfile="${build-strap.dir}/compiler.complete">
       <srcfiles dir="${src.dir}/compiler"/>
     </uptodate>
   </target>
 
-  <target name="strap.comp" depends="strap.pre-comp" unless="strap.comp.available">
-    <stopwatch name="strap.comp.timer"/>
+  <target name="strap.comp" depends="strap.pre-comp" unless="strap.compiler.available">
+    <stopwatch name="strap.compiler.timer"/>
     <mkdir dir="${build-strap.dir}/classes/compiler"/>
     <scalacfork
       destdir="${build-strap.dir}/classes/compiler"
@@ -1833,7 +1833,7 @@ BOOTSTRAPPING BUILD (STRAP)
       srcdir="${src.dir}/compiler"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="strap.comp.build.path"/>
+      <compilationpath refid="strap.compiler.build.path"/>
     </scalacfork>
     <propertyfile file="${build-strap.dir}/classes/compiler/compiler.properties">
       <entry key="version.number" value="${version.number}"/>
@@ -1845,7 +1845,7 @@ BOOTSTRAPPING BUILD (STRAP)
       <fileset dir="${src.dir}/compiler" includes="comp.includes"/>
     </copy>
     <touch file="${build-strap.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="strap.comp.timer" action="total"/>
+    <stopwatch name="strap.compiler.timer" action="total"/>
   </target>
 
   <target name="strap.done" depends="strap.comp"/>
@@ -1905,7 +1905,7 @@ SBT Compiler Interface
     <mkdir dir="${build-sbt.dir}/classes"/>
     <scalacfork
       destdir="${build-sbt.dir}/classes"
-      compilerpathref="quick.comp.build.path"
+      compilerpathref="quick.compiler.build.path"
       params="${scalac.args.quick}"
       srcdir="${sbt.src.dir}"
       jvmargs="${scalacfork.jvmargs}">
@@ -2058,7 +2058,7 @@ DOCUMENTATION
   </target>
 
   <target name="docs.comp" depends="docs.pre-comp" unless="docs.compiler.available">
-    <stopwatch name="docs.comp.timer"/>
+    <stopwatch name="docs.compiler.timer"/>
     <mkdir dir="${build-docs.dir}/compiler"/>
     <scaladoc
       destdir="${build-docs.dir}/compiler"
@@ -2078,7 +2078,7 @@ DOCUMENTATION
       <include name="**/*.scala"/>
     </scaladoc>
     <touch file="${build-docs.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="docs.comp.timer" action="total"/>
+    <stopwatch name="docs.compiler.timer" action="total"/>
   </target>
 
   <target name="docs.pre-jline" depends="docs.start">
@@ -2670,7 +2670,7 @@ POSITIONS
     </if>
     <scalacfork
       destdir=""
-      compilerpathref="locker.comp.build.path"
+      compilerpathref="locker.compiler.build.path"
       srcpath="${srcdir}"
       params="-Xprint-pos -Yide-debug"
       srcdir="${srcdir}"
