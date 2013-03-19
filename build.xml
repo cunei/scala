@@ -483,7 +483,7 @@ INITIALISATION
     <echo message="canonical version: ${version.number}" />
 
   <!-- Define tasks that can be run with Starr -->
-    <path id="starr.classpath">
+    <path id="starr.compiler.path">
       <pathelement location="${lib.starr.jar}"/>
       <pathelement location="${reflect.starr.jar}"/>
       <pathelement location="${comp.starr.jar}"/>
@@ -739,7 +739,7 @@ INITIALISATION
       <pathelement location="${build.dir}/manmaker/classes"/>
     </path>
 
-    <taskdef resource="scala/tools/ant/sabbus/antlib.xml" classpathref="starr.classpath"/>
+    <taskdef resource="scala/tools/ant/sabbus/antlib.xml" classpathref="starr.compiler.path"/>
   </target>
 
 <!-- ===========================================================================
@@ -847,7 +847,7 @@ LOCAL REFERENCE BUILD (LOCKER)
     </javac>
     <scalacfork
       destdir="${build-locker.dir}/classes/library"
-      compilerpathref="starr.classpath"
+      compilerpathref="starr.compiler.path"
       srcpath="${src.dir}/library"
       params="${scalac.args.all}"
       srcdir="${src.dir}/library"
@@ -885,7 +885,7 @@ LOCAL REFERENCE BUILD (LOCKER)
     <mkdir dir="${build-locker.dir}/classes/reflect"/>
     <scalacfork
       destdir="${build-locker.dir}/classes/reflect"
-      compilerpathref="starr.classpath"
+      compilerpathref="starr.compiler.path"
       params="${scalac.args.all}"
       srcdir="${src.dir}/reflect"
       jvmargs="${scalacfork.jvmargs}">
@@ -928,7 +928,7 @@ LOCAL REFERENCE BUILD (LOCKER)
     <mkdir dir="${build-locker.dir}/classes/compiler"/>
     <scalacfork
       destdir="${build-locker.dir}/classes/compiler"
-      compilerpathref="starr.classpath"
+      compilerpathref="starr.compiler.path"
       params="${scalac.args.all}"
       srcdir="${src.dir}/compiler"
       jvmargs="${scalacfork.jvmargs}">
