@@ -452,14 +452,6 @@ INITIALISATION
     <!-- Local libs (developer use.) -->
     <mkdir dir="${lib-extra.dir}"/>
 
-    <path id="lib.extra">
-      <!-- needs ant 1.7.1 -->
-      <!-- <fileset dir="${lib-extra.dir}" erroronmissingdir="false"> -->
-      <fileset dir="${lib-extra.dir}">
-        <include name="**/*.jar"/>
-      </fileset>
-    </path>
-
     <!-- Libraries only used for STARR -->
     <path id="starr.dep.libs">
       <fileset dir="${lib.dir}">
@@ -469,7 +461,11 @@ INITIALISATION
     <!-- Auxiliary libs placed on every classpath. -->
     <path id="aux.libs">
       <pathelement location="${ant.jar}"/>
-      <path refid="lib.extra"/>
+      <!-- needs ant 1.7.1 -->
+      <!-- <fileset dir="${lib-extra.dir}" erroronmissingdir="false"> -->
+      <fileset dir="${lib-extra.dir}">
+        <include name="**/*.jar"/>
+      </fileset>
       <path refid="dependency.classpath"/>
     </path>
 
@@ -547,12 +543,7 @@ INITIALISATION
     <path id="quick.lib.build.path">
       <pathelement location="${build-quick.dir}/classes/library"/>
       <path refid="forkjoin.classpath"/>
-      <path refid="lib.extra"/>
-    </path>
-
-    <path id="quick.lib.javac.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <path refid="forkjoin.classpath"/>
+      <path refid="aux.libs"/>
     </path>
 
     <path id="quick.reflect.build.path">
@@ -616,16 +607,6 @@ INITIALISATION
       <path refid="forkjoin.classpath"/>
       <path refid="asm.classpath"/>
       <pathelement location="${scalacheck.jar}"/>
-    </path>
-
-    <path id="quick.partest.javac.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-      <pathelement location="${build-quick.dir}/classes/reflect"/>
-      <pathelement location="${build-quick.dir}/classes/compiler"/>
-      <pathelement location="${build-quick.dir}/classes/repl"/>
-      <pathelement location="${build-quick.dir}/classes/scalap"/>
-      <pathelement location="${build-quick.dir}/classes/partest"/>
-      <path refid="asm.classpath"/>
     </path>
 
     <path id="quick.scaladoc.build.path">
@@ -700,7 +681,7 @@ INITIALISATION
       <pathelement location="${build-pack.dir}/lib/scala-actors.jar"/>
       <pathelement location="${ant.jar}"/>
       <pathelement location="${jline.jar}"/>
-      <path refid="lib.extra"/>
+      <path refid="aux.libs"/>
     </path>
 
     <path id="pack.bin.tool.path">
@@ -717,15 +698,10 @@ INITIALISATION
     </path>
 
     <!-- STRAP -->
-    <path id="strap.lib.javac.path">
+    <path id="strap.lib.build.path">
       <pathelement location="${build-strap.dir}/classes/library"/>
       <path refid="forkjoin.classpath"/>
-    </path>
-
-    <path id="strap.build.path">
-      <pathelement location="${build-strap.dir}/classes/library"/>
-      <path refid="forkjoin.classpath"/>
-      <path refid="lib.extra"/>
+      <path refid="aux.libs"/>
     </path>
 
     <path id="strap.reflect.build.path">
@@ -1154,7 +1130,7 @@ QUICK BUILD (QUICK)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-      <classpath refid="quick.lib.javac.path"/>
+      <classpath refid="quick.lib.build.path"/>
     </javac>
     <javac
       srcdir="${src.dir}/actors"
@@ -1162,7 +1138,7 @@ QUICK BUILD (QUICK)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args}"/>
-      <classpath refid="quick.lib.javac.path"/>
+      <classpath refid="quick.lib.build.path"/>
     </javac>
     <scalacfork
       destdir="${build-quick.dir}/classes/library"
@@ -1419,7 +1395,7 @@ QUICK BUILD (QUICK)
       srcdir="${src.dir}/partest"
       destdir="${build-quick.dir}/classes/partest"
       target="1.6" source="1.5">
-      <classpath refid="quick.partest.javac.path"/>
+      <classpath refid="quick.partest.build.path"/>
       <include name="**/*.java"/>
       <compilerarg line="${javac.args}"/>
     </javac>
@@ -1879,7 +1855,7 @@ BOOTSTRAPPING BUILD (STRAP)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args} -XDignore.symbol.file"/>
-      <classpath refid="strap.lib.javac.path"/>
+      <classpath refid="strap.lib.build.path"/>
     </javac>
     <javac
       srcdir="${src.dir}/actors"
@@ -1887,7 +1863,7 @@ BOOTSTRAPPING BUILD (STRAP)
       includes="**/*.java"
       target="1.6" source="1.5">
       <compilerarg line="${javac.args}"/>
-      <classpath refid="strap.lib.javac.path"/>
+      <classpath refid="strap.lib.build.path"/>
     </javac>
     <scalacfork
       destdir="${build-strap.dir}/classes/library"
@@ -1897,7 +1873,7 @@ BOOTSTRAPPING BUILD (STRAP)
       srcdir="${src.dir}/library"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="strap.build.path"/>
+      <compilationpath refid="strap.lib.build.path"/>
     </scalacfork>
     <scalacfork
       destdir="${build-strap.dir}/classes/library"
@@ -1906,7 +1882,7 @@ BOOTSTRAPPING BUILD (STRAP)
       srcdir="${src.dir}/actors"
       jvmargs="${scalacfork.jvmargs}">
       <include name="**/*.scala"/>
-      <compilationpath refid="strap.build.path"/>
+      <compilationpath refid="strap.lib.build.path"/>
     </scalacfork>
     <propertyfile file="${build-strap.dir}/classes/library/library.properties">
       <entry key="version.number" value="${version.number}"/>
