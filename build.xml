@@ -187,6 +187,7 @@ PROPERTIES
   <property name="lib-ant.dir" value="${lib.dir}/ant"/>
   <property name="src.dir" value="${basedir}/src"/>
   <property name="partest.dir" value="${basedir}/test"/>
+  <property name="partest.srcdir" value="files" />
 
   <!-- For developers: any jars placed in this dir will be added to the classpath
        of all targets and copied into quick/pack/etc builds. -->
@@ -1388,17 +1389,14 @@ SBT Compiler Interface
         <available file="${sbt.interface.src.jar}"/>
       </and>
     </condition>
-
   </target>
 
-  <target name="sbt.libs" depends="init" unless="sbt.available">
+  <target name="sbt.compile" depends="quick.done">
     <get src="${sbt.interface.url}" dest="${sbt.interface.jar}"/>
     <get src="${sbt.interface.src.url}" dest="${sbt.interface.src.jar}"/>
     <!-- Explode sources -->
     <unzip src="${sbt.interface.src.jar}" dest="${sbt.src.dir}"/>
-  </target>
 
-  <target name="sbt.compile" depends="sbt.libs,quick.done">
     <stopwatch name="quick.sbt-interface.timer"/>
     <mkdir dir="${build-sbt.dir}/classes"/>
     <scalacfork
@@ -1412,9 +1410,6 @@ SBT Compiler Interface
     </scalacfork>
     <touch file="${build-sbt.dir}/sbt-interface.complete" verbose="no"/>
     <stopwatch name="quick.sbt-interface.timer" action="total"/>
-  </target>
-
-  <target name="sbt.done" depends="sbt.compile">
   </target>
 
   <target name="sbt.clean" depends="init">
@@ -1444,9 +1439,6 @@ DOCUMENTATION
     <!-- Unless set with -Dscaladoc.<...>, these won't be activated -->
     <property name="scaladoc.raw.output" value="no"/>
     <property name="scaladoc.no.prefixes" value="no"/>
-  </target>
-
-  <target name="docs.pre-lib" depends="docs.start">
   </target>
 
   <target name="docs.lib" depends="docs.start">
@@ -1689,27 +1681,10 @@ BOOTRAPING TEST AND TEST SUITE
     <!-- <exec osfamily="windows" executable="foo" failonerror="false" failifexecutionfails="false" /> -->
   </target>
 
-  <target name="test.classload" depends="pack.done">
-    <!-- TODO - Add actors + reflect to this -->
-    <classloadVerify classpath="${build-pack.dir}/lib/scala-library.jar" />
-  </target>
 
-  <!-- this target will run only those tests found in test/debug -->
-  <target name="test.sbt" depends="sbt.done">
-  </target>
+  <target name="test.sbt" depends="sbt.compile"/>
 
-  <!-- this target will run only those tests found in test/debug -->
-  <target name="test.debug">
-    <antcall target="test.suite">
-      <param name="partest.srcdir" value="debug" />
-    </antcall>
-  </target>
-
-  <target name="test.pre-run" depends="pack.done">
-    <property name="partest.srcdir" value="files" />
-  </target>
-
-  <target name="test.run" depends="test.pre-run">
+  <target name="test.run" depends="pack.done">
     <partest showlog="yes" erroronfailed="yes" javacmd="${java.home}/bin/java"
              timeout="1200000"
              srcdir="${partest.srcdir}"
@@ -1721,18 +1696,7 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-  <target name="test.ant" depends="test.pre-run">
-    <property name="partest.srcdir" value="files" />
-    <partest showlog="yes" erroronfailed="yes" javacmd="${java.home}/bin/java"
-             srcdir="${partest.srcdir}"
-             scalacopts="${scalac.args.optimise}">
-      <compilationpath refid="partest.classpath"/>
-      <anttests dir="${partest.dir}/${partest.srcdir}/ant" includes="*build.xml"/>
-    </partest>
-  </target>
-
-  <target name="test.suite" depends="test.pre-run">
-    <property name="partest.srcdir" value="files" />
+  <target name="test.suite" depends="pack.done">
     <partest showlog="yes" erroronfailed="yes" javacmd="${java.home}/bin/java"
              timeout="2400000"
              srcdir="${partest.srcdir}"
@@ -1756,8 +1720,7 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-  <target name="test.continuations.suite" depends="test.pre-run">
-    <property name="partest.srcdir" value="files" />
+  <target name="test.continuations.suite" depends="pack.done">
     <partest showlog="yes" erroronfailed="yes" javacmd="${java.home}/bin/java"
              timeout="2400000"
              srcdir="${partest.srcdir}"
@@ -1770,7 +1733,7 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-  <target name="test.scaladoc" depends="test.pre-run">
+  <target name="test.scaladoc" depends="pack.done">
     <partest erroronfailed="yes" scalacopts="${scalac.args.optimise}" showlog="yes">
       <compilationpath refid="partest.classpath"/>
       <runtests        dir="${partest.dir}/scaladoc/run"        includes="*.scala" />
@@ -1778,7 +1741,7 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-  <target name="test.interactive" depends="test.pre-run">
+  <target name="test.interactive" depends="pack.done">
     <partest erroronfailed="yes" scalacopts="${scalac.args.optimise}" showlog="yes">
       <compilationpath refid="partest.classpath"/>
       <presentationtests dir="${partest.dir}/${partest.srcdir}/presentation">
@@ -1787,7 +1750,8 @@ BOOTRAPING TEST AND TEST SUITE
     </partest>
   </target>
 
-<!-- currently disabled: test.ant, test.bc, test.positions, test.classload, test.debug -->
+
+<!-- currently disabled: test.ant, test.bc, test.positions, test.classload -->
   <target name="test.done" depends="test.osgi, test.sbt, test.interactive, test.continuations.suite, test.suite, test.scaladoc, test.stability"/>
 
 
@@ -2081,10 +2045,28 @@ FORWARDED TARGETS FOR NIGHTLY BUILDS
     </antcall>
   </target>
 
+
 <!-- ===========================================================================
-POSITIONS
+   TODO: FIX OR REMOVE
 ============================================================================ -->
 
+  <!-- not called by test target -->
+  <target name="test.classload" depends="pack.done">
+    <!-- TODO - Add actors + reflect to this -->
+    <classloadVerify classpath="${build-pack.dir}/lib/scala-library.jar" />
+  </target>
+
+  <!-- not called by test target -->
+  <target name="test.ant" depends="pack.done">
+    <partest showlog="yes" erroronfailed="yes" javacmd="${java.home}/bin/java"
+             srcdir="${partest.srcdir}"
+             scalacopts="${scalac.args.optimise}">
+      <compilationpath refid="partest.classpath"/>
+      <anttests dir="${partest.dir}/${partest.srcdir}/ant" includes="*build.xml"/>
+    </partest>
+  </target>
+
+  <!-- not called by test target -->
   <target name="test.positions" depends="quick.comp">
     <antcall target="test.positions.tests.sub" inheritRefs="true">
       <param name="test.tests.srcs" value="${partest.dir}/files/positions"/>
