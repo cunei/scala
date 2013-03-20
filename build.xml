@@ -1367,7 +1367,7 @@ OSGi Artifacts
           <include name="**/*Test.class"/>
         </fileset>
       </batchtest>
-      <formatter type="brief" usefile="false" />
+      <formatter type="brief" /> <!-- silenced by having it use a file; I tried for an hour to use other formatters but classpath issues drove me to this usefile="false" -->
     </junit>
     <stopwatch name="test.osgi.timer" action="total"/>
   </target>
