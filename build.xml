@@ -882,6 +882,24 @@ LOCAL DEPENDENCY (FORKJOIN)
     </sequential>
   </macrodef>
 
+  <macrodef name="staged-pack">
+    <attribute name="project"/>
+    <attribute name="targetdir" default="lib"/>
+    <attribute name="targetjar" default="scala-@{project}.jar"/>
+    <element name="do" implicit="true"/>
+
+    <sequential>
+      <uptodate property="pack.@{project}.available"
+        targetfile="${build-pack.dir}/@{targetdir}/@{targetjar}"
+        srcfile="${build-quick.dir}/@{project}.complete"/>
+      <if><not><isset property="pack.@{project}.available"/></not><then>
+        <mkdir dir="${build-pack.dir}/@{targetdir}"/>
+        <do/>
+      </then></if>
+    </sequential>
+  </macrodef>
+
+
 <!-- ===========================================================================
 LOCAL REFERENCE BUILD (LOCKER)
 ============================================================================ -->
@@ -1080,11 +1098,7 @@ PACKED QUICK BUILD (PACK)
 ============================================================================ -->
 
   <target name="pack.lib" depends="quick.lib, quick.plugins, forkjoin.done">
-    <uptodate property="pack.library.available"
-      targetfile="${build-pack.dir}/lib/scala-library.jar"
-      srcfile="${build-quick.dir}/library.complete"/>
-    <if><not><isset property="pack.library.available"/></not><then>
-      <mkdir dir="${build-pack.dir}/lib"/>
+    <staged-pack project="library">
       <!-- First copy maven dependencies -->
       <copy todir="${build-pack.dir}/lib">
         <fileset refid="dependency.fileset" />
@@ -1103,7 +1117,7 @@ PACKED QUICK BUILD (PACK)
           <include name="scala/actors/**"/>
         </fileset>
       </jar>
-    </then></if>
+    </staged-pack>
   </target>
 
   <target name="pack.swing" depends="quick.swing" if="has.java6">
@@ -1115,27 +1129,19 @@ PACKED QUICK BUILD (PACK)
   </target>
 
   <target name="pack.reflect" depends="quick.reflect">
-    <uptodate property="pack.reflect.available"
-      targetfile="${build-pack.dir}/lib/scala-reflect.jar"
-      srcfile="${build-quick.dir}/reflect.complete"/>
-    <if><not><isset property="pack.reflect.available"/></not><then>
-      <mkdir dir="${build-pack.dir}/lib"/>
+    <staged-pack project="reflect’">
       <jar destfile="${build-pack.dir}/lib/scala-reflect.jar" basedir="${build-quick.dir}/classes/reflect"/>
-    </then></if>
+    </staged-pack>
   </target>
 
   <target name="pack.comp" depends="quick.comp, quick.scaladoc, quick.interactive, quick.repl, asm.done">
-    <uptodate property="pack.compiler.available"
-      targetfile="${build-pack.dir}/lib/scala-compiler.jar"
-      srcfile="${build-quick.dir}/compiler.complete"/>
-    <if><not><isset property="pack.compiler.available"/></not><then>
+    <staged-pack project="compiler">
       <mkdir dir="${build-pack.dir}/META-INF"/>
       <copy file="META-INF/MANIFEST.MF" toDir="${build-pack.dir}/META-INF"/>
       <manifest file="${build-pack.dir}/META-INF/MANIFEST.MF" mode="update">
         <attribute name="Bundle-Version" value="${version.number}"/>
         <attribute name="Class-Path" value="scala-reflect.jar scala-library.jar"/>
       </manifest>
-      <mkdir dir="${build-pack.dir}/lib"/>
       <jar destfile="${build-pack.dir}/lib/scala-compiler.jar" manifest="${build-pack.dir}/META-INF/MANIFEST.MF">
         <service type="javax.script.ScriptEngineFactory" provider="scala.tools.nsc.interpreter.IMain$Factory"/>
         <fileset dir="${build-quick.dir}/classes/compiler"/>
@@ -1150,17 +1156,13 @@ PACKED QUICK BUILD (PACK)
           <include name="**/*.jar"/>
         </fileset>
       </copy>
-    </then></if>
+    </staged-pack>
   </target>
 
   <target name="pack.plugins" depends="quick.plugins">
-    <uptodate property="pack.plugins.available"
-      targetfile="${build-pack.dir}/misc/scala-devel/plugins/continuations.jar"
-      srcfile="${build-quick.dir}/plugins.complete"/>
-    <if><not><isset property="pack.plugins.available"/></not><then>
-      <mkdir dir="${build-pack.dir}/misc/scala-devel/plugins"/>
+    <staged-pack project="plugins" targetdir="misc/scala-devel/plugins" targetjar="continuations.jar">
       <jar destfile="${build-pack.dir}/misc/scala-devel/plugins/continuations.jar" basedir="${build-quick.dir}/classes/continuations-plugin"/>
-    </then></if>
+    </staged-pack>
   </target>
 
   <target name="pack.scalacheck" depends="quick.scalacheck">
@@ -1173,11 +1175,7 @@ PACKED QUICK BUILD (PACK)
   </target>
 
   <target name="pack.partest" depends="quick.partest">
-    <uptodate property="pack.partest.available"
-      targetfile="${build-pack.dir}/lib/scala-partest.jar"
-      srcfile="${build-quick.dir}/partest.complete"/>
-    <if><not><isset property="pack.partest.available"/></not><then>
-      <mkdir dir="${build-pack.dir}/lib"/>
+    <staged-pack project="partest">
       <jar destfile="${build-pack.dir}/lib/scala-partest.jar">
         <fileset dir="${build-quick.dir}/classes/partest">
           <exclude name="scala/tools/partest/javaagent/**"/>
@@ -1189,20 +1187,16 @@ PACKED QUICK BUILD (PACK)
           <include name = "scala/tools/partest/javaagent/**"/>
         </fileset>
       </jar>
-    </then></if>
+    </staged-pack>
   </target>
 
   <target name="pack.scalap" depends="quick.scalap">
-    <uptodate property="pack.scalap.available"
-      targetfile="${build-pack.dir}/lib/scalap.jar"
-      srcfile="${build-quick.dir}/scalap.complete"/>
-    <if><not><isset property="pack.scalap.available"/></not><then>
-      <mkdir dir="${build-pack.dir}/lib"/>
+    <staged-pack project="plugins" targetjar="scalap.jar">
       <jar destfile="${build-pack.dir}/lib/scalap.jar">
         <fileset dir="${build-quick.dir}/classes/scalap"/>
         <fileset file="${src.dir}/scalap/decoder.properties"/>
       </jar>
-    </then></if>
+    </staged-pack>
   </target>
 
   <target name="pack.bin" depends="pack.comp, pack.lib, pack.partest, pack.plugins, pack.reflect, pack.scalacheck, pack.scalap, pack.swing">
