@@ -514,7 +514,7 @@ INITIALISATION
       <path refid="locker.compiler.build.path"/>
     </path>
 
-    <path id="palo.bin.class.path">
+    <path id="palo.bin.tool.path">
       <pathelement location="${build-palo.dir}/lib/scala-library.jar"/>
       <pathelement location="${build-palo.dir}/lib/scala-reflect.jar"/>
       <pathelement location="${build-palo.dir}/lib/scala-compiler.jar"/>
@@ -602,7 +602,7 @@ INITIALISATION
       <pathelement location="${build-quick.dir}/classes/library"/>
     </path>
 
-    <path id="quick.bin.classpath">
+    <path id="quick.bin.tool.path">
       <path refid="quick.repl.build.path"/>
       <pathelement location="${build-quick.dir}/classes/scalap"/>
       <pathelement location="${build-quick.dir}/classes/continuations-library"/>
@@ -867,6 +867,42 @@ LOCAL DEPENDENCY (FORKJOIN)
     </sequential>
   </macrodef>
 
+  <macrodef name="staged-bin">
+    <attribute name="stage"/>
+    <attribute name="classpathref" default="NOT SET"/>
+    <sequential>
+      <staged-uptodate stage="@{stage}" project="bin">
+        <check>
+          <srcfiles dir="${src.dir}">
+            <include name="compiler/scala/tools/ant/templates/**"/>
+          </srcfiles>
+        </check>
+        <do>
+          <taskdef name="mk-bin" classname="scala.tools.ant.ScalaTool" classpathref="@{stage}.bin.tool.path"/>
+          <mkdir dir="${build-@{stage}.dir}/bin"/>
+          <if><equals arg1="@{classpathref}" arg2="NOT SET"/><then>
+            <mk-bin file="${build-@{stage}.dir}/bin/scala"    class="scala.tools.nsc.MainGenericRunner" javaFlags="${java.flags}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/scalac"   class="scala.tools.nsc.Main"              javaFlags="${java.flags}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/scaladoc" class="scala.tools.nsc.ScalaDoc"          javaFlags="${java.flags}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/fsc"      class="scala.tools.nsc.CompileClient"     javaFlags="${java.flags}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/scalap"   class="scala.tools.scalap.Main"           javaFlags="${java.flags}"/>
+          </then><else>
+            <mk-bin file="${build-@{stage}.dir}/bin/scala"    class="scala.tools.nsc.MainGenericRunner" javaFlags="${java.flags}" classpathref="@{classpathref}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/scalac"   class="scala.tools.nsc.Main"              javaFlags="${java.flags}" classpathref="@{classpathref}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/scaladoc" class="scala.tools.nsc.ScalaDoc"          javaFlags="${java.flags}" classpathref="@{classpathref}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/fsc"      class="scala.tools.nsc.CompileClient"     javaFlags="${java.flags}" classpathref="@{classpathref}"/>
+            <mk-bin file="${build-@{stage}.dir}/bin/scalap"   class="scala.tools.scalap.Main"           javaFlags="${java.flags}" classpathref="@{classpathref}"/>
+          </else></if>
+          <chmod perm="ugo+rx" file="${build-@{stage}.dir}/bin/scala"/>
+          <chmod perm="ugo+rx" file="${build-@{stage}.dir}/bin/scalac"/>
+          <chmod perm="ugo+rx" file="${build-@{stage}.dir}/bin/scaladoc"/>
+          <chmod perm="ugo+rx" file="${build-@{stage}.dir}/bin/fsc"/>
+          <chmod perm="ugo+rx" file="${build-@{stage}.dir}/bin/scalap"/>
+        </do>
+      </staged-uptodate>
+    </sequential>
+  </macrodef>
+
 <!-- ===========================================================================
 LOCAL REFERENCE BUILD (LOCKER)
 ============================================================================ -->
@@ -925,44 +961,7 @@ PACKED LOCKER BUILD (PALO)
   </target>
 
   <target name="palo.bin" depends="palo.done">
-    <staged-uptodate stage="locker" project="bin">
-      <check>
-        <srcfiles dir="${src.dir}">
-          <include name="compiler/scala/tools/ant/templates/**"/>
-        </srcfiles>
-      </check>
-      <do>
-        <taskdef name="palo-bin" classname="scala.tools.ant.ScalaTool">
-          <classpath refid="palo.bin.class.path"/>
-        </taskdef>
-        <mkdir dir="${build-palo.dir}/bin"/>
-        <palo-bin
-          file="${build-palo.dir}/bin/scala"
-          class="scala.tools.nsc.MainGenericRunner"
-          javaFlags="${java.flags}"/>
-        <palo-bin
-          file="${build-palo.dir}/bin/scalac"
-          class="scala.tools.nsc.Main"
-          javaFlags="${java.flags}"/>
-        <palo-bin
-          file="${build-palo.dir}/bin/scaladoc"
-          class="scala.tools.nsc.ScalaDoc"
-          javaFlags="${java.flags}"/>
-        <palo-bin
-          file="${build-palo.dir}/bin/fsc"
-          class="scala.tools.nsc.CompileClient"
-          javaFlags="${java.flags}"/>
-        <palo-bin
-          file="${build-palo.dir}/bin/scalap"
-          class="scala.tools.scalap.Main"
-          javaFlags="${java.flags}"/>
-        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scala"/>
-        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scalac"/>
-        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scaladoc"/>
-        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/fsc"/>
-        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scalap"/>
-      </do>
-    </staged-uptodate>
+    <staged-bin stage="palo"/>
   </target>
 
   <target name="palo.clean" depends="quick.clean">
@@ -1092,39 +1091,7 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.bin" depends="quick.lib, quick.reflect, quick.comp, quick.repl, quick.scalacheck, quick.scalap, quick.interactive, quick.swing, quick.plugins, quick.partest, quick.scaladoc">
-    <taskdef name="quick-bin" classname="scala.tools.ant.ScalaTool" classpathref="quick.bin.classpath"/>
-    <mkdir dir="${build-quick.dir}/bin"/>
-    <quick-bin
-      file="${build-quick.dir}/bin/scala"
-      class="scala.tools.nsc.MainGenericRunner"
-      javaFlags="${java.flags}"
-      classpathref="quick.bin.classpath"/>
-    <quick-bin
-      file="${build-quick.dir}/bin/scalac"
-      class="scala.tools.nsc.Main"
-      javaFlags="${java.flags}"
-      classpathref="quick.bin.classpath"/>
-    <quick-bin
-      file="${build-quick.dir}/bin/scaladoc"
-      class="scala.tools.nsc.ScalaDoc"
-      javaFlags="${java.flags}"
-      classpathref="quick.bin.classpath"/>
-    <quick-bin
-      file="${build-quick.dir}/bin/fsc"
-      class="scala.tools.nsc.CompileClient"
-      javaFlags="${java.flags}"
-      classpathref="quick.bin.classpath"/>
-    <quick-bin
-      file="${build-quick.dir}/bin/scalap"
-      class="scala.tools.scalap.Main"
-      javaFlags="${java.flags}"
-      classpathref="quick.bin.classpath"/>
-    <chmod perm="ugo+rx" file="${build-quick.dir}/bin/scala"/>
-    <chmod perm="ugo+rx" file="${build-quick.dir}/bin/scalac"/>
-    <chmod perm="ugo+rx" file="${build-quick.dir}/bin/scaladoc"/>
-    <chmod perm="ugo+rx" file="${build-quick.dir}/bin/fsc"/>
-    <chmod perm="ugo+rx" file="${build-quick.dir}/bin/scalap"/>
-    <touch file="${build-quick.dir}/bin.complete" verbose="no"/>
+    <staged-bin stage="quick" classpathref="quick.bin.tool.path"/>
   </target>
 
   <target name="quick.done" depends="quick.bin"/>
@@ -1263,41 +1230,7 @@ PACKED QUICK BUILD (PACK)
   </target>
 
   <target name="pack.bin" depends="pack.comp, pack.lib, pack.partest, pack.plugins, pack.reflect, pack.scalacheck, pack.scalap, pack.swing">
-    <uptodate property="pack.bin.available" targetfile="${build-pack.dir}/bin.complete">
-      <srcfiles dir="${build-pack.dir}/lib/"/>
-    </uptodate>
-    <if><not><isset property="pack.bin.available"/></not><then>
-      <taskdef name="pack-bin" classname="scala.tools.ant.ScalaTool">
-        <classpath refid="pack.bin.tool.path"/>
-      </taskdef>
-      <mkdir dir="${build-pack.dir}/bin"/>
-      <pack-bin
-        file="${build-pack.dir}/bin/scala"
-        class="scala.tools.nsc.MainGenericRunner"
-        javaFlags="${java.flags}"/>
-      <pack-bin
-        file="${build-pack.dir}/bin/scalac"
-        class="scala.tools.nsc.Main"
-        javaFlags="${java.flags}"/>
-      <pack-bin
-        file="${build-pack.dir}/bin/scaladoc"
-        class="scala.tools.nsc.ScalaDoc"
-        javaFlags="${java.flags}"/>
-      <pack-bin
-        file="${build-pack.dir}/bin/fsc"
-        class="scala.tools.nsc.CompileClient"
-        javaFlags="${java.flags}"/>
-      <pack-bin
-        file="${build-pack.dir}/bin/scalap"
-        class="scala.tools.scalap.Main"
-        javaFlags="${java.flags}"/>
-      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scala"/>
-      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scalac"/>
-      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scaladoc"/>
-      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/fsc"/>
-      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scalap"/>
-      <touch file="${build-pack.dir}/bin.complete" verbose="no"/>
-    </then></if>
+    <staged-bin stage="pack"/>
   </target>
 
   <target name="pack.done" depends="pack.bin">
