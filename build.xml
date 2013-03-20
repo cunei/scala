@@ -761,9 +761,9 @@ LOCAL DEPENDENCY (FORKJOIN)
   </macrodef>
 
   <macrodef name="staged-scalac" >
-    <attribute name="compiler" default="NOT SET"/>       <!-- will use path `@{compiler}.compiler.path` to locate scalac -->
-    <attribute name="stage" default="NOT SET"/>          <!-- current stage (locker, quick, strap) -->
-    <attribute name="project" default="NOT SET"/>        <!-- project: library/reflect/compiler/actors -->
+    <attribute name="with"/>           <!-- will use path `@{with}.compiler.path` to locate scalac -->
+    <attribute name="stage"/>          <!-- current stage (locker, quick, strap) -->
+    <attribute name="project"/>        <!-- project: library/reflect/compiler/actors -->
     <attribute name="srcpath" default="NOT SET"/>        <!-- needed to compile the library -->
     <attribute name="args" default=""/>                  <!-- additional args -->
     <attribute name="destproject" default="@{project}"/> <!-- overrides the output directory; used when building multiple projects into the same directory-->
@@ -772,7 +772,7 @@ LOCAL DEPENDENCY (FORKJOIN)
       <if><equals arg1="@{srcpath}" arg2="NOT SET"/><then>
         <scalacfork
           destdir="${build-@{stage}.dir}/classes/@{destproject}"
-          compilerpathref="@{compiler}.compiler.path"
+          compilerpathref="@{with}.compiler.path"
           params="${scalac.args.@{stage}} @{args}"
           srcdir="${src.dir}/@{project}"
           jvmargs="${scalacfork.jvmargs}">
@@ -782,7 +782,7 @@ LOCAL DEPENDENCY (FORKJOIN)
       <else>
         <scalacfork
           destdir="${build-@{stage}.dir}/classes/@{destproject}"
-          compilerpathref="@{compiler}.compiler.path"
+          compilerpathref="@{with}.compiler.path"
           srcpath="@{srcpath}"
           params="${scalac.args.@{stage}} @{args}"
           srcdir="${src.dir}/@{project}"
@@ -811,12 +811,12 @@ LOCAL DEPENDENCY (FORKJOIN)
     </sequential>
   </macrodef>
 
-  <macrodef name="compile-with" >
-    <attribute name="compiler" default="NOT SET"/>
-    <attribute name="stage" default="NOT SET"/>
-    <attribute name="project" default="NOT SET"/>
-    <attribute name="srcpath" default="NOT SET"/>
-    <attribute name="args" default=""/>
+  <macrodef name="staged-build" >
+    <attribute name="with"/>           <!-- will use path `@{with}.compiler.path` to locate scalac -->
+    <attribute name="stage"/>          <!-- current stage (locker, quick, strap) -->
+    <attribute name="project"/>        <!-- project: library/reflect/compiler/actors -->
+    <attribute name="srcpath" default="NOT SET"/>        <!-- needed to compile the library -->
+    <attribute name="args" default=""/>                  <!-- additional args -->
     <attribute name="includes" default="comp.includes"/>
     <element name="pre" optional="true"/>
     <element name="post" optional="true"/>
@@ -828,7 +828,7 @@ LOCAL DEPENDENCY (FORKJOIN)
           <stopwatch name="@{stage}.@{project}.timer"/>
           <mkdir dir="${build-@{stage}.dir}/classes/@{project}"/>
           <pre/>
-          <staged-scalac compiler="@{compiler}" stage="@{stage}" project="@{project}" srcpath="@{srcpath}" args="@{args}"/>
+          <staged-scalac with="@{with}" stage="@{stage}" project="@{project}" srcpath="@{srcpath}" args="@{args}"/>
           <post/>
           <propertyfile file="${build-@{stage}.dir}/classes/@{project}/@{project}.properties">
             <entry key="version.number" value="${version.number}"/>
@@ -964,17 +964,17 @@ LOCAL REFERENCE BUILD (LOCKER)
   </target>
 
   <target name="locker.lib" depends="asm.done, forkjoin.done" unless="locker.locked">
-    <compile-with compiler="starr" stage="locker" project="library" srcpath="${src.dir}/library" includes="lib.includes">
+    <staged-build with="starr" stage="locker" project="library" srcpath="${src.dir}/library" includes="lib.includes">
       <pre><staged-javac stage="locker" project="library"/></pre>
-    </compile-with>
+    </staged-build>
   </target>
 
   <target name="locker.reflect" depends="locker.lib" unless="locker.locked">
-    <compile-with compiler="starr" stage="locker" project="reflect"/>
+    <staged-build with="starr" stage="locker" project="reflect"/>
   </target>
 
   <target name="locker.comp" depends="locker.reflect" unless="locker.locked">
-    <compile-with compiler="starr" stage="locker" project="compiler"/>
+    <staged-build with="starr" stage="locker" project="compiler"/>
   </target>
 
   <target name="locker.done" depends="locker.comp">
@@ -1024,41 +1024,41 @@ QUICK BUILD (QUICK)
   <target name="quick.start" depends="locker.done"/>
 
   <target name="quick.lib" depends="quick.start">
-    <compile-with compiler="locker" stage="quick" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
+    <staged-build with="locker" stage="quick" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
         <staged-javac stage="quick" project="library"/>
         <staged-javac stage="quick" project="actors" destproject="library"/>
       </pre>
       <post>
-        <staged-scalac compiler="locker" stage="quick" project="actors" destproject="library"/>
+        <staged-scalac with="locker" stage="quick" project="actors" destproject="library"/>
       </post>
-    </compile-with>
+    </staged-build>
   </target>
 
   <target name="quick.reflect" depends="quick.lib">
-    <compile-with compiler="locker" stage="quick" project="reflect"/>
+    <staged-build with="locker" stage="quick" project="reflect"/>
   </target>
 
   <target name="quick.comp" depends="quick.reflect">
-    <compile-with compiler="locker" stage="quick" project="compiler"/>
+    <staged-build with="locker" stage="quick" project="compiler"/>
   </target>
 
-  <target name="quick.repl" depends="quick.comp"> <compile-with compiler="locker" stage="quick" project="repl"/> </target>
+  <target name="quick.repl" depends="quick.comp"> <staged-build with="locker" stage="quick" project="repl"/> </target>
 
   <target name="quick.scalacheck" depends="quick.lib">
-    <compile-with compiler="locker" stage="quick" project="scalacheck" args="-nowarn"/>
+    <staged-build with="locker" stage="quick" project="scalacheck" args="-nowarn"/>
   </target>
 
   <target name="quick.scalap" depends="quick.repl">
-    <compile-with compiler="locker" stage="quick" project="scalap"/>
+    <staged-build with="locker" stage="quick" project="scalap"/>
   </target>
 
   <target name="quick.interactive" depends="quick.comp, quick.scaladoc">
-    <compile-with compiler="locker" stage="quick" project="interactive"/>
+    <staged-build with="locker" stage="quick" project="interactive"/>
   </target>
 
   <target name="quick.swing" depends="quick.lib" if="has.java6">
-    <compile-with compiler="locker" stage="quick" project="swing"/>
+    <staged-build with="locker" stage="quick" project="swing"/>
   </target>
 
   <target name="quick.plugins" depends="quick.comp">
@@ -1107,7 +1107,7 @@ QUICK BUILD (QUICK)
         <stopwatch name="quick.partest.timer"/>
           <mkdir dir="${build-quick.dir}/classes/partest"/>
           <staged-javac                    stage="quick" project="partest"/>
-          <staged-scalac compiler="locker" stage="quick" project="partest"/>
+          <staged-scalac with="locker" stage="quick" project="partest"/>
           <propertyfile file="${build-quick.dir}/classes/partest/partest.properties">
             <entry key="version.number" value="${partest.version.number}"/>
             <entry key="copyright.string" value="${copyright.string}"/>
@@ -1125,7 +1125,7 @@ QUICK BUILD (QUICK)
       <check><srcfiles dir="${src.dir}/scaladoc"/></check>
       <do>
         <mkdir dir="${build-quick.dir}/classes/scaladoc"/>
-        <staged-scalac compiler="locker" stage="quick" project="scaladoc"/>
+        <staged-scalac with="locker" stage="quick" project="scaladoc"/>
         <propertyfile file="${build-quick.dir}/classes/scaladoc/scaladoc.properties">
           <entry key="version.number" value="${scaladoc.version.number}"/>
           <entry key="copyright.string" value="${copyright.string}"/>
@@ -1381,23 +1381,23 @@ BOOTSTRAPPING BUILD (STRAP)
 ============================================================================ -->
 
   <target name="strap.lib" depends="quick.done">
-    <compile-with compiler="quick" stage="strap" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
+    <staged-build with="quick" stage="strap" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
         <staged-javac stage="strap" project="library"/>
         <staged-javac stage="strap" project="actors" destproject="library"/>
       </pre>
       <post>
-        <staged-scalac compiler="quick" stage="strap" project="actors" destproject="library"/>
+        <staged-scalac with="quick" stage="strap" project="actors" destproject="library"/>
       </post>
-    </compile-with>
+    </staged-build>
   </target>
 
   <target name="strap.reflect" depends="strap.lib">
-    <compile-with compiler="pack" stage="strap" project="reflect"/>
+    <staged-build with="pack" stage="strap" project="reflect"/>
   </target>
 
   <target name="strap.comp" depends="strap.reflect">
-    <compile-with compiler="pack" stage="strap" project="compiler"/>
+    <staged-build with="pack" stage="strap" project="compiler"/>
   </target>
 
   <target name="strap.done" depends="strap.comp"/>
