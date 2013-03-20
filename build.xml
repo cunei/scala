@@ -835,6 +835,23 @@ LOCAL DEPENDENCY (FORKJOIN)
     </sequential>
   </macrodef>
 
+  <macrodef name="staged-uptodate" >
+    <attribute name="stage"/>
+    <attribute name="project"/>
+    <element name="check"/>
+    <element name="do"/>
+
+    <sequential>
+      <uptodate property="@{stage}.@{project}.available" targetfile="${build-@{stage}.dir}/@{project}.complete">
+        <check/>
+      </uptodate>
+      <if><not><isset property="@{stage}.@{project}.available"/></not><then>
+        <do/>
+        <touch file="${build-@{stage}.dir}/@{project}.complete" verbose="no"/>
+      </then></if>
+    </sequential>
+  </macrodef>
+
   <macrodef name="compile-with" >
     <attribute name="compiler" default="NOT SET"/>
     <attribute name="stage" default="NOT SET"/>
@@ -846,24 +863,28 @@ LOCAL DEPENDENCY (FORKJOIN)
     <element name="post" optional="true"/>
 
     <sequential>
-      <stopwatch name="@{stage}.@{project}.timer"/>
-      <mkdir dir="${build-@{stage}.dir}/classes/@{project}"/>
-      <pre/>
-      <staged-scalac compiler="@{compiler}" stage="@{stage}" project="@{project}" srcpath="@{srcpath}" args="@{args}"/>
-      <post/>
-      <propertyfile file="${build-@{stage}.dir}/classes/@{project}/@{project}.properties">
-        <entry key="version.number" value="${version.number}"/>
-        <entry key="maven.version.number" value="${maven.version.number}"/>
-        <entry key="osgi.version.number" value="${osgi.version.number}"/>
-        <entry key="copyright.string" value="${copyright.string}"/>
-      </propertyfile>
-      <copy todir="${build-@{stage}.dir}/classes/@{project}">
-        <fileset dir="${src.dir}/@{project}">
-          <patternset refid="@{includes}"/>
-        </fileset>
-      </copy>
-      <touch file="${build-@{stage}.dir}/@{project}.complete" verbose="no"/>
-      <stopwatch name="@{stage}.@{project}.timer" action="total"/>
+      <staged-uptodate stage="@{stage}" project="@{project}">
+        <check><srcfiles dir="${src.dir}/@{project}"/></check>
+        <do>
+          <stopwatch name="@{stage}.@{project}.timer"/>
+          <mkdir dir="${build-@{stage}.dir}/classes/@{project}"/>
+          <pre/>
+          <staged-scalac compiler="@{compiler}" stage="@{stage}" project="@{project}" srcpath="@{srcpath}" args="@{args}"/>
+          <post/>
+          <propertyfile file="${build-@{stage}.dir}/classes/@{project}/@{project}.properties">
+            <entry key="version.number" value="${version.number}"/>
+            <entry key="maven.version.number" value="${maven.version.number}"/>
+            <entry key="osgi.version.number" value="${osgi.version.number}"/>
+            <entry key="copyright.string" value="${copyright.string}"/>
+          </propertyfile>
+          <copy todir="${build-@{stage}.dir}/classes/@{project}">
+            <fileset dir="${src.dir}/@{project}">
+              <patternset refid="@{includes}"/>
+            </fileset>
+          </copy>
+          <stopwatch name="@{stage}.@{project}.timer" action="total"/>
+        </do>
+      </staged-uptodate>
     </sequential>
   </macrodef>
 
@@ -872,133 +893,51 @@ LOCAL REFERENCE BUILD (LOCKER)
 ============================================================================ -->
 
   <target name="locker.start" depends="asm.done, forkjoin.done">
-    <condition property="locker.available">
-      <available file="${build-locker.dir}/all.complete"/>
+    <condition property="locker.locked">
+      <available file="${build-locker.dir}/locker.locked"/>
     </condition>
   </target>
 
-  <target name="locker.pre-lib" depends="locker.start" unless="locker.available">
-    <condition property="locker.library.needed">
-      <not><available file="${build-locker.dir}/library.complete"/></not>
-    </condition>
-  </target>
-
-  <target name="locker.lib" depends="locker.pre-lib" if="locker.library.needed">
+  <target name="locker.lib" depends="asm.done, forkjoin.done" unless="locker.locked">
     <compile-with compiler="starr" stage="locker" project="library" srcpath="${src.dir}/library" includes="lib.includes">
-      <pre>
-        <staged-javac stage="locker" project="library"/>
-      </pre>
+      <pre><staged-javac stage="locker" project="library"/></pre>
     </compile-with>
   </target>
 
-
-  <target name="locker.pre-reflect" depends="locker.lib" unless="locker.available">
-    <condition property="locker.reflect.needed">
-      <not><available file="${build-locker.dir}/reflect.complete"/></not>
-    </condition>
-  </target>
-
-  <target name="locker.reflect" depends="locker.pre-reflect" if="locker.reflect.needed">
+  <target name="locker.reflect" depends="locker.lib" unless="locker.locked">
     <compile-with compiler="starr" stage="locker" project="reflect"/>
   </target>
 
-  <target name="locker.pre-comp" depends="locker.reflect" unless="locker.available">
-    <condition property="locker.compiler.needed">
-      <not><available file="${build-locker.dir}/compiler.complete"/></not>
-    </condition>
-  </target>
-
-
-  <target name="locker.comp" depends="locker.pre-comp" if="locker.compiler.needed">
+  <target name="locker.comp" depends="locker.reflect" unless="locker.locked">
     <compile-with compiler="starr" stage="locker" project="compiler"/>
   </target>
 
   <target name="locker.done" depends="locker.comp">
-    <touch file="${build-locker.dir}/all.complete" verbose="no"/>
+    <touch file="${build-locker.dir}/locker.locked" verbose="no"/>
   </target>
 
   <target name="locker.clean" depends="palo.clean">
     <delete dir="${build-locker.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
   </target>
 
-  <target name="locker.unlock.pre-lib">
-    <uptodate property="locker.library.available" targetfile="${build-locker.dir}/library.complete">
-      <srcfiles dir="${src.dir}/library"/>
-    </uptodate>
-  </target>
-
-  <target name="locker.unlock.lib" depends="locker.unlock.pre-lib" unless="locker.library.available">
-    <delete file="${build-locker.dir}/library.complete"/>
-  </target>
-
-  <target name="locker.unlock.pre-reflect" depends="locker.unlock.lib">
-    <uptodate property="locker.reflect.available" targetfile="${build-locker.dir}/reflect.complete">
-      <srcfiles dir="${src.dir}/reflect"/>
-    </uptodate>
-  </target>
-
-  <target name="locker.unlock.reflect" depends="locker.unlock.pre-reflect" unless="locker.reflect.available">
-    <delete file="${build-locker.dir}/reflect.complete"/>
-  </target>
-
-  <target name="locker.unlock.pre-comp" depends="locker.unlock.reflect">
-    <uptodate property="locker.compiler.available" targetfile="${build-locker.dir}/compiler.complete">
-      <srcfiles dir="${src.dir}/compiler"/>
-    </uptodate>
-  </target>
-
-  <target name="locker.unlock.comp" depends="locker.unlock.pre-comp" unless="locker.compiler.available">
-    <delete file="${build-locker.dir}/compiler.complete"/>
-  </target>
-
-  <target name="locker.unlock" depends="locker.unlock.comp">
-    <delete file="${build-locker.dir}/all.complete" />
+  <target name="locker.unlock">
+    <delete file="${build-locker.dir}/*.complete"/>
+    <delete file="${build-locker.dir}/locker.locked" />
   </target>
 
 <!-- ===========================================================================
 PACKED LOCKER BUILD (PALO)
 ============================================================================ -->
 
-  <target name="palo.start" depends="locker.done"/>
-
-  <target name="palo.pre-lib" depends="palo.start">
-    <uptodate
-      property="palo.library.available"
-      targetfile="${build-palo.dir}/lib/scala-library.jar"
-      srcfile="${build-locker.dir}/library.complete"/>
-  </target>
-
-  <target name="palo.lib" depends="palo.pre-lib" unless="palo.library.available">
+  <target name="palo.done" depends="locker.done">
     <mkdir dir="${build-palo.dir}/lib"/>
     <jar destfile="${build-palo.dir}/lib/scala-library.jar">
       <fileset dir="${build-locker.dir}/classes/library"/>
       <fileset dir="${build-libs.dir}/classes/forkjoin"/>
     </jar>
-  </target>
-
-  <target name="palo.pre-reflect" depends="palo.lib">
-    <uptodate
-      property="palo.reflect.available"
-      targetfile="${build-palo.dir}/lib/scala-reflect.jar"
-      srcfile="${build-locker.dir}/reflect.complete"/>
-  </target>
-
-  <target name="palo.reflect" depends="palo.pre-reflect" unless="palo.reflect.available">
-    <mkdir dir="${build-palo.dir}/lib"/>
     <jar destfile="${build-palo.dir}/lib/scala-reflect.jar" manifest="${basedir}/META-INF/MANIFEST.MF">
       <fileset dir="${build-locker.dir}/classes/reflect"/>
     </jar>
-  </target>
-
-  <target name="palo.pre-comp" depends="palo.reflect">
-    <uptodate
-      property="palo.compiler.available"
-      targetfile="${build-palo.dir}/lib/scala-compiler.jar"
-      srcfile="${build-locker.dir}/compiler.complete"/>
-  </target>
-
-  <target name="palo.comp" depends="palo.pre-comp" unless="palo.compiler.available">
-    <mkdir dir="${build-palo.dir}/lib"/>
     <jar destfile="${build-palo.dir}/lib/scala-compiler.jar" manifest="${basedir}/META-INF/MANIFEST.MF">
       <fileset dir="${build-locker.dir}/classes/compiler"/>
       <fileset dir="${build-asm.dir}/classes/"/>
@@ -1006,52 +945,49 @@ PACKED LOCKER BUILD (PALO)
     <copy file="${jline.jar}" toDir="${build-palo.dir}/lib"/>
   </target>
 
-  <target name="palo.done" depends="palo.comp">
+  <target name="palo.bin" depends="palo.done">
+    <staged-uptodate stage="locker" project="bin">
+      <check>
+        <srcfiles dir="${src.dir}">
+          <include name="compiler/scala/tools/ant/templates/**"/>
+        </srcfiles>
+      </check>
+      <do>
+        <taskdef name="palo-bin" classname="scala.tools.ant.ScalaTool">
+          <classpath refid="palo.bin.class.path"/>
+        </taskdef>
+        <mkdir dir="${build-palo.dir}/bin"/>
+        <palo-bin
+          file="${build-palo.dir}/bin/scala"
+          class="scala.tools.nsc.MainGenericRunner"
+          javaFlags="${java.flags}"/>
+        <palo-bin
+          file="${build-palo.dir}/bin/scalac"
+          class="scala.tools.nsc.Main"
+          javaFlags="${java.flags}"/>
+        <palo-bin
+          file="${build-palo.dir}/bin/scaladoc"
+          class="scala.tools.nsc.ScalaDoc"
+          javaFlags="${java.flags}"/>
+        <palo-bin
+          file="${build-palo.dir}/bin/fsc"
+          class="scala.tools.nsc.CompileClient"
+          javaFlags="${java.flags}"/>
+        <palo-bin
+          file="${build-palo.dir}/bin/scalap"
+          class="scala.tools.scalap.Main"
+          javaFlags="${java.flags}"/>
+        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scala"/>
+        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scalac"/>
+        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scaladoc"/>
+        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/fsc"/>
+        <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scalap"/>
+      </do>
+    </staged-uptodate>
   </target>
 
   <target name="palo.clean" depends="quick.clean">
     <delete dir="${build-palo.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
-
-  <target name="palo.pre-bin" depends="palo.comp">
-    <uptodate property="palo.bin.available" targetfile="${build-locker.dir}/bin.complete">
-      <srcfiles dir="${src.dir}">
-        <include name="compiler/scala/tools/ant/templates/**"/>
-      </srcfiles>
-    </uptodate>
-  </target>
-
-  <target name="palo.bin" depends="palo.pre-bin" unless="palo.bin.available">
-    <taskdef name="palo-bin" classname="scala.tools.ant.ScalaTool">
-      <classpath refid="palo.bin.class.path"/>
-    </taskdef>
-    <mkdir dir="${build-palo.dir}/bin"/>
-    <palo-bin
-      file="${build-palo.dir}/bin/scala"
-      class="scala.tools.nsc.MainGenericRunner"
-      javaFlags="${java.flags}"/>
-    <palo-bin
-      file="${build-palo.dir}/bin/scalac"
-      class="scala.tools.nsc.Main"
-      javaFlags="${java.flags}"/>
-    <palo-bin
-      file="${build-palo.dir}/bin/scaladoc"
-      class="scala.tools.nsc.ScalaDoc"
-      javaFlags="${java.flags}"/>
-    <palo-bin
-      file="${build-palo.dir}/bin/fsc"
-      class="scala.tools.nsc.CompileClient"
-      javaFlags="${java.flags}"/>
-    <palo-bin
-      file="${build-palo.dir}/bin/scalap"
-      class="scala.tools.scalap.Main"
-      javaFlags="${java.flags}"/>
-    <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scala"/>
-    <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scalac"/>
-    <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scaladoc"/>
-    <chmod perm="ugo+rx" file="${build-palo.dir}/bin/fsc"/>
-    <chmod perm="ugo+rx" file="${build-palo.dir}/bin/scalap"/>
-    <touch file="${build-locker.dir}/bin.complete" verbose="no"/>
   </target>
 
 <!-- ===========================================================================
@@ -1060,17 +996,7 @@ QUICK BUILD (QUICK)
 
   <target name="quick.start" depends="locker.done"/>
 
-  <target name="quick.pre-lib" depends="quick.start">
-    <uptodate property="quick.library.available" targetfile="${build-quick.dir}/library.complete">
-      <srcfiles dir="${src.dir}">
-        <include name="library/**"/>
-        <include name="swing/**"/>
-        <include name="actors/**"/>
-      </srcfiles>
-    </uptodate>
-  </target>
-
-  <target name="quick.lib" depends="quick.pre-lib" unless="quick.library.available">
+  <target name="quick.lib" depends="quick.start">
     <compile-with compiler="locker" stage="quick" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
         <staged-javac stage="quick" project="library"/>
@@ -1082,168 +1008,111 @@ QUICK BUILD (QUICK)
     </compile-with>
   </target>
 
-  <target name="quick.pre-reflect" depends="quick.lib">
-    <uptodate property="quick.reflect.available" targetfile="${build-quick.dir}/reflect.complete">
-      <srcfiles dir="${src.dir}/reflect"/>
-    </uptodate>
-  </target>
-
-  <target name="quick.reflect" depends="quick.pre-reflect" unless="quick.reflect.available">
+  <target name="quick.reflect" depends="quick.lib">
     <compile-with compiler="locker" stage="quick" project="reflect"/>
   </target>
 
-  <target name="quick.pre-comp" depends="quick.reflect">
-    <uptodate property="quick.compiler.available" targetfile="${build-quick.dir}/compiler.complete">
-      <srcfiles dir="${src.dir}/compiler"/>
-    </uptodate>
-  </target>
-
-  <target name="quick.comp" depends="quick.pre-comp" unless="quick.compiler.available">
+  <target name="quick.comp" depends="quick.reflect">
     <compile-with compiler="locker" stage="quick" project="compiler"/>
   </target>
 
-  <target name="quick.pre-repl" depends="quick.comp">
-    <uptodate property="quick.repl.available" targetfile="${build-quick.dir}/repl.complete">
-      <srcfiles dir="${src.dir}/repl" />
-    </uptodate>
-  </target>
+  <target name="quick.repl" depends="quick.comp"> <compile-with compiler="locker" stage="quick" project="repl"/> </target>
 
-  <target name="quick.repl" depends="quick.pre-repl" unless="quick.repl.available">
-    <compile-with compiler="locker" stage="quick" project="repl"/>
-  </target>
-
-  <target name="quick.swing" depends="quick.repl" if="has.java6" unless="quick.compiler.available">
-    <compile-with compiler="locker" stage="quick" project="swing"/>
-  </target>
-
-  <target name="quick.pre-plugins" depends="quick.swing" unless="quick.repl.available">
-    <uptodate property="quick.plugins.available" targetfile="${build-quick.dir}/plugins.complete">
-      <srcfiles dir="${src.dir}/continuations"/>
-    </uptodate>
-  </target>
-
-  <target name="quick.plugins" depends="quick.pre-plugins" unless="quick.plugins.available">
-    <stopwatch name="quick.plugins.timer"/>
-    <mkdir dir="${build-quick.dir}/classes/continuations-plugin"/>
-    <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
-    <scalacfork
-      destdir="${build-quick.dir}/classes/continuations-plugin"
-      compilerpathref="quick.compiler.path"
-      params="${scalac.args.quick}"
-      srcdir="${src.dir}/continuations/plugin"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.plugins.build.path"/>
-    </scalacfork>
-    <copy
-       file="${src.dir}/continuations/plugin/scalac-plugin.xml"
-       todir="${build-quick.dir}/classes/continuations-plugin"/>
-    <!-- not very nice to create jar here but needed to load plugin -->
-    <mkdir dir="${build-quick.dir}/misc/scala-devel/plugins"/>
-    <jar destfile="${build-quick.dir}/misc/scala-devel/plugins/continuations.jar">
-      <fileset dir="${build-quick.dir}/classes/continuations-plugin"/>
-    </jar>
-    <!-- might split off library part into its own ant target -->
-    <scalacfork
-      destdir="${build-quick.dir}/classes/continuations-library"
-      compilerpathref="quick.compiler.path"
-      params="${scalac.args.quick} -Xplugin-require:continuations -P:continuations:enable"
-      srcdir="${src.dir}/continuations/library"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="quick.library.build.path"/>
-      <compilerarg value="-Xpluginsdir"/>
-      <compilerarg file="${build-quick.dir}/misc/scala-devel/plugins"/>
-    </scalacfork>
-    <touch file="${build-quick.dir}/plugins.complete" verbose="no"/>
-    <stopwatch name="quick.plugins.timer" action="total"/>
-  </target>
-
-  <target name="quick.pre-scalacheck" depends="quick.plugins">
-    <uptodate property="quick.scalacheck.available" targetfile="${build-quick.dir}/scalacheck.complete">
-      <srcfiles dir="${src.dir}/scalacheck"/>
-    </uptodate>
-  </target>
-
-  <target name="quick.scalacheck" depends="quick.pre-scalacheck" unless="quick.scalacheck.available">
+  <target name="quick.scalacheck" depends="quick.lib">
     <compile-with compiler="locker" stage="quick" project="scalacheck" args="-nowarn"/>
   </target>
 
-  <target name="quick.pre-scalap" depends="quick.scalacheck">
-    <uptodate property="quick.scalap.available" targetfile="${build-quick.dir}/scalap.complete">
-      <srcfiles dir="${src.dir}/scalap"/>
-    </uptodate>
-  </target>
-
-  <target name="quick.scalap" depends="quick.pre-scalap" unless="quick.scalap.available">
+  <target name="quick.scalap" depends="quick.repl">
     <compile-with compiler="locker" stage="quick" project="scalap"/>
   </target>
 
-  <target name="quick.pre-partest" depends="quick.scalap, asm.done">
-    <uptodate property="quick.partest.available" targetfile="${build-quick.dir}/partest.complete">
-      <srcfiles dir="${src.dir}/partest"/>
-    </uptodate>
-  </target>
-
-  <target name="quick.partest" depends="quick.pre-partest" unless="quick.partest.available">
-    <stopwatch name="quick.partest.timer"/>
-      <mkdir dir="${build-quick.dir}/classes/partest"/>
-      <javac
-        srcdir="${src.dir}/partest"
-        destdir="${build-quick.dir}/classes/partest"
-        target="1.6" source="1.5">
-        <classpath refid="quick.partest.build.path"/>
-        <include name="**/*.java"/>
-        <compilerarg line="${javac.args}"/>
-      </javac>
-      <staged-scalac compiler="locker" stage="quick" project="partest"/>
-      <propertyfile file="${build-quick.dir}/classes/partest/partest.properties">
-        <entry key="version.number" value="${partest.version.number}"/>
-        <entry key="copyright.string" value="${copyright.string}"/>
-      </propertyfile>
-      <copy todir="${build-quick.dir}/classes/partest">
-        <fileset dir="${src.dir}/partest"> <patternset refid="partest.includes"/> </fileset>
-      </copy>
-      <touch file="${build-quick.dir}/partest.complete" verbose="no"/>
-    <stopwatch name="quick.partest.timer" action="total"/>
-  </target>
-
-  <target name="quick.pre-scaladoc" depends="quick.partest">
-    <uptodate property="quick.scaladoc.available" targetfile="${build-quick.dir}/scaladoc.complete">
-      <srcfiles dir="${src.dir}/scaladoc" />
-    </uptodate>
-  </target>
-
-  <target name="quick.scaladoc" depends="quick.pre-scaladoc" unless="quick.scaladoc.available">
-    <mkdir dir="${build-quick.dir}/classes/scaladoc"/>
-    <staged-scalac compiler="locker" stage="quick" project="scaladoc"/>
-    <propertyfile file="${build-quick.dir}/classes/scaladoc/scaladoc.properties">
-      <entry key="version.number" value="${scaladoc.version.number}"/>
-      <entry key="copyright.string" value="${copyright.string}"/>
-    </propertyfile>
-    <copy todir="${build-quick.dir}/classes/scaladoc">
-      <fileset dir="${src.dir}/scaladoc">  <patternset refid="comp.includes"/> </fileset>
-    </copy>
-    <touch file="${build-quick.dir}/scaladoc.complete" verbose="no"/>
-  </target>
-
-  <target name="quick.pre-interactive" depends="quick.scaladoc">
-    <uptodate property="quick.interactive.available" targetfile="${build-quick.dir}/interactive.complete">
-      <srcfiles dir="${src.dir}/interactive" />
-    </uptodate>
-  </target>
-
-  <target name="quick.interactive" depends="quick.pre-interactive" unless="quick.interactive.available">
+  <target name="quick.interactive" depends="quick.comp, quick.scaladoc">
     <compile-with compiler="locker" stage="quick" project="interactive"/>
   </target>
 
-  <target name="quick.pre-bin" depends="quick.interactive">
-    <condition property="quick.bin.available">
-      <isset property="quick.compiler.available"/>
-    </condition>
+  <target name="quick.swing" depends="quick.lib" if="has.java6">
+    <compile-with compiler="locker" stage="quick" project="swing"/>
   </target>
 
-  <target name="quick.bin" depends="quick.pre-bin" unless="quick.bin.available">
+  <target name="quick.plugins" depends="quick.comp">
+    <staged-uptodate stage="quick" project="plugins">
+      <check><srcfiles dir="${src.dir}/continuations"/></check>
+      <do>
+        <stopwatch name="quick.plugins.timer"/>
+        <mkdir dir="${build-quick.dir}/classes/continuations-plugin"/>
+        <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
+        <scalacfork
+          destdir="${build-quick.dir}/classes/continuations-plugin"
+          compilerpathref="quick.compiler.path"
+          params="${scalac.args.quick}"
+          srcdir="${src.dir}/continuations/plugin"
+          jvmargs="${scalacfork.jvmargs}">
+          <include name="**/*.scala"/>
+          <compilationpath refid="quick.plugins.build.path"/>
+        </scalacfork>
+        <copy
+           file="${src.dir}/continuations/plugin/scalac-plugin.xml"
+           todir="${build-quick.dir}/classes/continuations-plugin"/>
+        <!-- not very nice to create jar here but needed to load plugin -->
+        <mkdir dir="${build-quick.dir}/misc/scala-devel/plugins"/>
+        <jar destfile="${build-quick.dir}/misc/scala-devel/plugins/continuations.jar">
+          <fileset dir="${build-quick.dir}/classes/continuations-plugin"/>
+        </jar>
+        <!-- might split off library part into its own ant target -->
+        <scalacfork
+          destdir="${build-quick.dir}/classes/continuations-library"
+          compilerpathref="quick.compiler.path"
+          params="${scalac.args.quick} -Xplugin-require:continuations -P:continuations:enable"
+          srcdir="${src.dir}/continuations/library"
+          jvmargs="${scalacfork.jvmargs}">
+          <include name="**/*.scala"/>
+          <compilationpath refid="quick.library.build.path"/>
+          <compilerarg value="-Xpluginsdir"/>
+          <compilerarg file="${build-quick.dir}/misc/scala-devel/plugins"/>
+        </scalacfork>
+        <stopwatch name="quick.plugins.timer" action="total"/>
+      </do>
+    </staged-uptodate>
+  </target>
+
+  <target name="quick.partest" depends="quick.scalap, quick.repl, asm.done">
+    <staged-uptodate stage="quick" project="partest">
+      <check><srcfiles dir="${src.dir}/partest"/></check>
+      <do>
+        <stopwatch name="quick.partest.timer"/>
+          <mkdir dir="${build-quick.dir}/classes/partest"/>
+          <staged-javac                    stage="quick" project="partest"/>
+          <staged-scalac compiler="locker" stage="quick" project="partest"/>
+          <propertyfile file="${build-quick.dir}/classes/partest/partest.properties">
+            <entry key="version.number" value="${partest.version.number}"/>
+            <entry key="copyright.string" value="${copyright.string}"/>
+          </propertyfile>
+          <copy todir="${build-quick.dir}/classes/partest">
+            <fileset dir="${src.dir}/partest"> <patternset refid="partest.includes"/> </fileset>
+          </copy>
+        <stopwatch name="quick.partest.timer" action="total"/>
+      </do>
+    </staged-uptodate>
+  </target>
+
+  <target name="quick.scaladoc" depends="quick.comp, quick.partest">
+    <staged-uptodate stage="quick" project="scaladoc">
+      <check><srcfiles dir="${src.dir}/scaladoc"/></check>
+      <do>
+        <mkdir dir="${build-quick.dir}/classes/scaladoc"/>
+        <staged-scalac compiler="locker" stage="quick" project="scaladoc"/>
+        <propertyfile file="${build-quick.dir}/classes/scaladoc/scaladoc.properties">
+          <entry key="version.number" value="${scaladoc.version.number}"/>
+          <entry key="copyright.string" value="${copyright.string}"/>
+        </propertyfile>
+        <copy todir="${build-quick.dir}/classes/scaladoc">
+          <fileset dir="${src.dir}/scaladoc">  <patternset refid="comp.includes"/> </fileset>
+        </copy>
+      </do>
+    </staged-uptodate>
+  </target>
+
+  <target name="quick.bin" depends="quick.lib, quick.reflect, quick.comp, quick.repl, quick.scalacheck, quick.scalap, quick.interactive, quick.swing, quick.plugins, quick.partest, quick.scaladoc">
     <taskdef name="quick-bin" classname="scala.tools.ant.ScalaTool" classpathref="quick.bin.classpath"/>
     <mkdir dir="${build-quick.dir}/bin"/>
     <quick-bin
@@ -1288,38 +1157,34 @@ QUICK BUILD (QUICK)
 PACKED QUICK BUILD (PACK)
 ============================================================================ -->
 
-  <target name="pack.start" depends="quick.done"/>
-
-  <target name="pack.pre-lib" depends="pack.start">
-    <uptodate
-      property="pack.library.available"
+  <target name="pack.lib" depends="quick.lib, quick.plugins, forkjoin.done">
+    <uptodate property="pack.library.available"
       targetfile="${build-pack.dir}/lib/scala-library.jar"
       srcfile="${build-quick.dir}/library.complete"/>
-  </target>
-
-  <target name="pack.lib" depends="pack.pre-lib" unless="pack.library.available">
-    <mkdir dir="${build-pack.dir}/lib"/>
-    <!-- First copy maven dependencies -->
-    <copy todir="${build-pack.dir}/lib">
-      <fileset refid="dependency.fileset" />
-      <mapper type="flatten" />
-    </copy>
-    <jar destfile="${build-pack.dir}/lib/scala-library.jar">
-      <fileset dir="${build-quick.dir}/classes/library">
-        <exclude name="scala/swing/**"/>
-        <exclude name="scala/actors/**"/>
-      </fileset>
-      <fileset dir="${build-quick.dir}/classes/continuations-library"/>
-      <fileset dir="${build-libs.dir}/classes/forkjoin"/>
-    </jar>
-    <jar destfile="${build-pack.dir}/lib/scala-actors.jar">
+    <if><not><isset property="pack.library.available"/></not><then>
+      <mkdir dir="${build-pack.dir}/lib"/>
+      <!-- First copy maven dependencies -->
+      <copy todir="${build-pack.dir}/lib">
+        <fileset refid="dependency.fileset" />
+        <mapper type="flatten" />
+      </copy>
+      <jar destfile="${build-pack.dir}/lib/scala-library.jar">
+        <fileset dir="${build-quick.dir}/classes/library">
+          <exclude name="scala/swing/**"/>
+          <exclude name="scala/actors/**"/>
+        </fileset>
+        <fileset dir="${build-quick.dir}/classes/continuations-library"/>
+        <fileset dir="${build-libs.dir}/classes/forkjoin"/>
+      </jar>
+      <jar destfile="${build-pack.dir}/lib/scala-actors.jar">
         <fileset dir="${build-quick.dir}/classes/library">
           <include name="scala/actors/**"/>
         </fileset>
-    </jar>
+      </jar>
+    </then></if>
   </target>
 
-  <target name="pack.swing" depends="pack.lib" if="has.java6">
+  <target name="pack.swing" depends="quick.swing" if="has.java6">
     <jar destfile="${build-pack.dir}/lib/scala-swing.jar">
       <fileset dir    = "${build-quick.dir}/classes/library">
         <include name = "scala/swing/**"/>
@@ -1327,146 +1192,140 @@ PACKED QUICK BUILD (PACK)
     </jar>
   </target>
 
-  <target name="pack.pre-reflect" depends="pack.lib, pack.swing">
-    <uptodate
-      property="pack.reflect.available"
+  <target name="pack.reflect" depends="quick.reflect">
+    <uptodate property="pack.reflect.available"
       targetfile="${build-pack.dir}/lib/scala-reflect.jar"
       srcfile="${build-quick.dir}/reflect.complete"/>
+    <if><not><isset property="pack.reflect.available"/></not><then>
+      <mkdir dir="${build-pack.dir}/lib"/>
+      <jar destfile="${build-pack.dir}/lib/scala-reflect.jar">
+        <fileset dir="${build-quick.dir}/classes/reflect" />
+      </jar>
+    </then></if>
   </target>
 
-  <target name="pack.reflect" depends="pack.pre-reflect" unless="pack.reflect.available">
-    <mkdir dir="${build-pack.dir}/lib"/>
-    <jar destfile="${build-pack.dir}/lib/scala-reflect.jar">
-      <fileset dir="${build-quick.dir}/classes/reflect" />
-    </jar>
-  </target>
-
-  <target name="pack.pre-comp" depends="pack.reflect">
-    <uptodate
-      property="pack.compiler.available"
+  <target name="pack.comp" depends="quick.comp, quick.scaladoc, quick.interactive, quick.repl, asm.done">
+    <uptodate property="pack.compiler.available"
       targetfile="${build-pack.dir}/lib/scala-compiler.jar"
       srcfile="${build-quick.dir}/compiler.complete"/>
+    <if><not><isset property="pack.compiler.available"/></not><then>
+      <mkdir dir="${build-pack.dir}/META-INF"/>
+      <copy file="META-INF/MANIFEST.MF" toDir="${build-pack.dir}/META-INF"/>
+      <manifest file="${build-pack.dir}/META-INF/MANIFEST.MF" mode="update">
+        <attribute name="Bundle-Version" value="${version.number}"/>
+        <attribute name="Class-Path" value="scala-reflect.jar scala-library.jar"/>
+      </manifest>
+      <mkdir dir="${build-pack.dir}/lib"/>
+      <jar destfile="${build-pack.dir}/lib/scala-compiler.jar" manifest="${build-pack.dir}/META-INF/MANIFEST.MF">
+        <service type="javax.script.ScriptEngineFactory" provider="scala.tools.nsc.interpreter.IMain$Factory"/>
+        <fileset dir="${build-quick.dir}/classes/compiler"/>
+        <fileset dir="${build-quick.dir}/classes/scaladoc"/>
+        <fileset dir="${build-quick.dir}/classes/interactive"/>
+        <fileset dir="${build-quick.dir}/classes/repl"/>
+        <fileset dir="${build-asm.dir}/classes"/>
+      </jar>
+      <copy file="${jline.jar}" toDir="${build-pack.dir}/lib"/>
+      <copy todir="${build-pack.dir}/lib">
+        <fileset dir="${lib-extra.dir}">
+          <include name="**/*.jar"/>
+        </fileset>
+      </copy>
+    </then></if>
   </target>
 
-  <target name="pack.comp" depends="pack.pre-comp" unless="pack.compiler.available">
-    <mkdir dir="${build-pack.dir}/META-INF"/>
-    <copy file="META-INF/MANIFEST.MF" toDir="${build-pack.dir}/META-INF"/>
-    <manifest file="${build-pack.dir}/META-INF/MANIFEST.MF" mode="update">
-      <attribute name="Bundle-Version" value="${version.number}"/>
-      <attribute name="Class-Path" value="scala-reflect.jar scala-library.jar"/>
-    </manifest>
-    <mkdir dir="${build-pack.dir}/lib"/>
-    <jar destfile="${build-pack.dir}/lib/scala-compiler.jar" manifest="${build-pack.dir}/META-INF/MANIFEST.MF">
-      <service type="javax.script.ScriptEngineFactory" provider="scala.tools.nsc.interpreter.IMain$Factory"/>
-      <fileset dir="${build-quick.dir}/classes/compiler"/>
-      <fileset dir="${build-quick.dir}/classes/scaladoc"/>
-      <fileset dir="${build-quick.dir}/classes/interactive"/>
-      <fileset dir="${build-quick.dir}/classes/repl"/>
-      <fileset dir="${build-asm.dir}/classes"/>
-    </jar>
-    <copy file="${jline.jar}" toDir="${build-pack.dir}/lib"/>
-    <copy todir="${build-pack.dir}/lib">
-      <fileset dir="${lib-extra.dir}">
-        <include name="**/*.jar"/>
-      </fileset>
-    </copy>
-  </target>
-
-  <target name="pack.pre-plugins" depends="pack.comp">
-    <uptodate
-      property="pack.plugins.available"
+  <target name="pack.plugins" depends="quick.plugins">
+    <uptodate property="pack.plugins.available"
       targetfile="${build-pack.dir}/misc/scala-devel/plugins/continuations.jar"
       srcfile="${build-quick.dir}/plugins.complete"/>
+    <if><not><isset property="pack.plugins.available"/></not><then>
+      <mkdir dir="${build-pack.dir}/misc/scala-devel/plugins"/>
+      <jar destfile="${build-pack.dir}/misc/scala-devel/plugins/continuations.jar">
+        <fileset dir="${build-quick.dir}/classes/continuations-plugin"/>
+      </jar>
+    </then></if>
   </target>
 
-  <target name="pack.plugins" depends="pack.pre-plugins" unless="pack.plugins.available">
-    <mkdir dir="${build-pack.dir}/misc/scala-devel/plugins"/>
-    <jar destfile="${build-pack.dir}/misc/scala-devel/plugins/continuations.jar">
-      <fileset dir="${build-quick.dir}/classes/continuations-plugin"/>
-    </jar>
+  <target name="pack.scalacheck" depends="quick.scalacheck">
+    <uptodate property="pack.scalacheck.available"
+         targetfile="${build-pack.dir}/lib/scalacheck.jar">
+      <srcfiles  dir="${build-quick.dir}/classes/scalacheck"/>
+    </uptodate>
+    <if><not><isset property="pack.scalacheck.available"/></not><then>
+      <jar destfile="${build-pack.dir}/lib/scalacheck.jar">
+        <fileset dir="${build-quick.dir}/classes/scalacheck"/>
+      </jar>
+    </then></if>
   </target>
 
-  <target name="pack.scalacheck" depends="pack.plugins">
-    <jar destfile="${build-pack.dir}/lib/scalacheck.jar">
-      <fileset dir="${build-quick.dir}/classes/scalacheck"/>
-    </jar>
-  </target>
-
-  <target name="pack.pre-partest" depends="pack.scalacheck">
-    <uptodate
-      property="pack.partest.available"
+  <target name="pack.partest" depends="quick.partest">
+    <uptodate property="pack.partest.available"
       targetfile="${build-pack.dir}/lib/scala-partest.jar"
       srcfile="${build-quick.dir}/partest.complete"/>
-  </target>
-
-  <target name="pack.partest" depends="pack.pre-partest" unless="pack.partest.available">
-    <mkdir dir="${build-pack.dir}/lib"/>
-    <jar destfile="${build-pack.dir}/lib/scala-partest.jar">
-      <fileset dir="${build-quick.dir}/classes/partest">
-        <exclude name="scala/tools/partest/javaagent/**"/>
-      </fileset>
-    </jar>
+    <if><not><isset property="pack.partest.available"/></not><then>
+      <mkdir dir="${build-pack.dir}/lib"/>
+      <jar destfile="${build-pack.dir}/lib/scala-partest.jar">
+        <fileset dir="${build-quick.dir}/classes/partest">
+          <exclude name="scala/tools/partest/javaagent/**"/>
+        </fileset>
+      </jar>
       <jar destfile     = "${build-pack.dir}/lib/scala-partest-javaagent.jar"
         manifest        = "${src.dir}/partest/scala/tools/partest/javaagent/MANIFEST.MF">
         <fileset dir    = "${build-quick.dir}/classes/partest">
           <include name = "scala/tools/partest/javaagent/**"/>
         </fileset>
-    </jar>
+      </jar>
+    </then></if>
   </target>
 
-  <target name="pack.pre-scalap" depends="pack.partest">
-    <uptodate
-      property="pack.scalap.available"
+  <target name="pack.scalap" depends="quick.scalap">
+    <uptodate property="pack.scalap.available"
       targetfile="${build-pack.dir}/lib/scalap.jar"
       srcfile="${build-quick.dir}/scalap.complete"/>
+    <if><not><isset property="pack.scalap.available"/></not><then>
+      <mkdir dir="${build-pack.dir}/lib"/>
+      <jar destfile="${build-pack.dir}/lib/scalap.jar">
+        <fileset dir="${build-quick.dir}/classes/scalap"/>
+        <fileset file="${src.dir}/scalap/decoder.properties"/>
+      </jar>
+    </then></if>
   </target>
 
-  <target name="pack.scalap" depends="pack.pre-scalap" unless="pack.scalap.available">
-    <mkdir dir="${build-pack.dir}/lib"/>
-    <jar destfile="${build-pack.dir}/lib/scalap.jar">
-      <fileset dir="${build-quick.dir}/classes/scalap"/>
-      <fileset file="${src.dir}/scalap/decoder.properties"/>
-    </jar>
-  </target>
-
-  <target name="pack.pre-bin" depends="pack.scalap">
-    <uptodate
-      property="pack.bin.available"
-      srcfile="${build-pack.dir}/lib/scala-compiler.jar"
-      targetfile="${build-pack.dir}/bin.complete"/>
-  </target>
-
-  <target name="pack.bin" depends="pack.pre-bin" unless="pack.bin.available">
-    <taskdef name="pack-bin" classname="scala.tools.ant.ScalaTool">
-      <classpath refid="pack.bin.tool.path"/>
-    </taskdef>
-    <mkdir dir="${build-pack.dir}/bin"/>
-    <pack-bin
-      file="${build-pack.dir}/bin/scala"
-      class="scala.tools.nsc.MainGenericRunner"
-      javaFlags="${java.flags}"/>
-    <pack-bin
-      file="${build-pack.dir}/bin/scalac"
-      class="scala.tools.nsc.Main"
-      javaFlags="${java.flags}"/>
-    <pack-bin
-      file="${build-pack.dir}/bin/scaladoc"
-      class="scala.tools.nsc.ScalaDoc"
-      javaFlags="${java.flags}"/>
-    <pack-bin
-      file="${build-pack.dir}/bin/fsc"
-      class="scala.tools.nsc.CompileClient"
-      javaFlags="${java.flags}"/>
-    <pack-bin
-      file="${build-pack.dir}/bin/scalap"
-      class="scala.tools.scalap.Main"
-      javaFlags="${java.flags}"/>
-    <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scala"/>
-    <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scalac"/>
-    <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scaladoc"/>
-    <chmod perm="ugo+rx" file="${build-pack.dir}/bin/fsc"/>
-    <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scalap"/>
-    <touch file="${build-pack.dir}/bin.complete" verbose="no"/>
+  <target name="pack.bin" depends="pack.comp, pack.lib, pack.partest, pack.plugins, pack.reflect, pack.scalacheck, pack.scalap, pack.swing">
+    <uptodate property="pack.bin.available" targetfile="${build-pack.dir}/bin.complete">
+      <srcfiles dir="${build-pack.dir}/lib/"/>
+    </uptodate>
+    <if><not><isset property="pack.bin.available"/></not><then>
+      <taskdef name="pack-bin" classname="scala.tools.ant.ScalaTool">
+        <classpath refid="pack.bin.tool.path"/>
+      </taskdef>
+      <mkdir dir="${build-pack.dir}/bin"/>
+      <pack-bin
+        file="${build-pack.dir}/bin/scala"
+        class="scala.tools.nsc.MainGenericRunner"
+        javaFlags="${java.flags}"/>
+      <pack-bin
+        file="${build-pack.dir}/bin/scalac"
+        class="scala.tools.nsc.Main"
+        javaFlags="${java.flags}"/>
+      <pack-bin
+        file="${build-pack.dir}/bin/scaladoc"
+        class="scala.tools.nsc.ScalaDoc"
+        javaFlags="${java.flags}"/>
+      <pack-bin
+        file="${build-pack.dir}/bin/fsc"
+        class="scala.tools.nsc.CompileClient"
+        javaFlags="${java.flags}"/>
+      <pack-bin
+        file="${build-pack.dir}/bin/scalap"
+        class="scala.tools.scalap.Main"
+        javaFlags="${java.flags}"/>
+      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scala"/>
+      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scalac"/>
+      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scaladoc"/>
+      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/fsc"/>
+      <chmod perm="ugo+rx" file="${build-pack.dir}/bin/scalap"/>
+      <touch file="${build-pack.dir}/bin.complete" verbose="no"/>
+    </then></if>
   </target>
 
   <target name="pack.done" depends="pack.bin">
@@ -1593,19 +1452,7 @@ OSGi Artifacts
 BOOTSTRAPPING BUILD (STRAP)
 ============================================================================ -->
 
-  <target name="strap.start" depends="pack.done"/>
-
-  <target name="strap.pre-lib" depends="strap.start">
-    <uptodate property="strap.library.available" targetfile="${build-strap.dir}/library.complete">
-      <srcfiles dir="${src.dir}">
-        <include name="library/**"/>
-        <include name="swing/**"/>
-        <include name="actors/**"/>
-      </srcfiles>
-    </uptodate>
-  </target>
-
-  <target name="strap.lib" depends="strap.pre-lib" unless="strap.library.available">
+  <target name="strap.lib" depends="quick.done">
     <compile-with compiler="quick" stage="strap" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
         <staged-javac stage="strap" project="library"/>
@@ -1617,23 +1464,11 @@ BOOTSTRAPPING BUILD (STRAP)
     </compile-with>
   </target>
 
-  <target name="strap.pre-reflect" depends="strap.lib">
-    <uptodate property="strap.reflect.available" targetfile="${build-strap.dir}/reflect.complete">
-      <srcfiles dir="${src.dir}/reflect"/>
-    </uptodate>
-  </target>
-
-  <target name="strap.reflect" depends="strap.pre-reflect" unless="strap.reflect.available">
+  <target name="strap.reflect" depends="strap.lib">
     <compile-with compiler="pack" stage="strap" project="reflect"/>
   </target>
 
-  <target name="strap.pre-comp" depends="strap.reflect">
-    <uptodate property="strap.compiler.available" targetfile="${build-strap.dir}/compiler.complete">
-      <srcfiles dir="${src.dir}/compiler"/>
-    </uptodate>
-  </target>
-
-  <target name="strap.comp" depends="strap.pre-comp" unless="strap.compiler.available">
+  <target name="strap.comp" depends="strap.reflect">
     <compile-with compiler="pack" stage="strap" project="compiler"/>
   </target>
 
@@ -1646,7 +1481,6 @@ BOOTSTRAPPING BUILD (STRAP)
 <!-- ===========================================================================
 LIBRARIES (Forkjoin, ASM)
 ============================================================================ -->
-
 
   <target name="libs.clean" depends="pack.clean, asm.clean">
     <delete dir="${build-libs.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
@@ -1717,19 +1551,6 @@ DOCUMENTATION
 ============================================================================ -->
 
   <target name="docs.start" depends="pack.done">
-    <macrodef name="doc-uptodate-check">
-      <attribute name="name" />
-      <attribute name="srcdir" />
-      <element name="source-includes" optional="yes" />
-      <sequential>
-        <uptodate property="docs.@{name}.available" targetfile="${build-docs.dir}/@{name}.complete">
-          <srcfiles dir="@{srcdir}">
-            <source-includes/>
-          </srcfiles>
-        </uptodate>
-      </sequential>
-    </macrodef>
-
     <!-- Set the github commit scaladoc sources point to -->
     <!-- For releases, look for the tag with the same name as the maven version -->
     <condition property="scaladoc.git.commit" value="v${maven.version.number}">
@@ -1751,229 +1572,227 @@ DOCUMENTATION
   </target>
 
   <target name="docs.pre-lib" depends="docs.start">
-    <doc-uptodate-check name="library" srcdir="${src.dir}">
-      <source-includes>
+  </target>
+
+  <target name="docs.lib" depends="docs.start">
+    <staged-uptodate stage="docs" project="library">
+      <check><source-includes>
         <include name="library/**"/>
         <include name="swing/**"/>
         <include name="actors/**"/>
         <include name="reflect/**"/>
-      </source-includes>
-    </doc-uptodate-check>
+      </source-includes></check>
+      <do>
+        <stopwatch name="docs.lib.timer"/>
+        <mkdir dir="${build-docs.dir}/library"/>
+        <scaladoc
+          destdir="${build-docs.dir}/library"
+          doctitle="Scala Standard Library API (Scaladoc)"
+          docversion="${version.number}"
+          docfooter="epfl"
+          docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
+          docUncompilable="${src.dir}/library-aux"
+          skipPackages="scala.reflect.macros.internal:scala.reflect.internal:scala.reflect.io:scala.concurrent.impl"
+          sourcepath="${src.dir}"
+          classpathref="pack.compiler.path"
+          addparams="${scalac.args.all}"
+          docRootContent="${src.dir}/library/rootdoc.txt"
+          implicits="on"
+          diagrams="on"
+          groups="on"
+          rawOutput="${scaladoc.raw.output}"
+          noPrefixes="${scaladoc.no.prefixes}">
+          <src>
+            <files includes="${src.dir}/actors"/>
+            <files includes="${src.dir}/library"/>
+            <files includes="${src.dir}/reflect"/>
+            <files includes="${src.dir}/swing"/>
+            <files includes="${src.dir}/continuations/library"/>
+          </src>
+          <include name="**/*.scala"/>
+          <exclude name="reflect/Code.scala"/>
+          <exclude name="reflect/Print.scala"/>
+          <exclude name="reflect/Symbol.scala"/>
+          <exclude name="reflect/Tree.scala"/>
+          <exclude name="reflect/Type.scala"/>
+          <exclude name="runtime/*$.scala"/>
+          <exclude name="runtime/ScalaRunTime.scala"/>
+          <exclude name="runtime/StringAdd.scala"/>
+        </scaladoc>
+        <stopwatch name="docs.lib.timer" action="total"/>
+      </do>
+    </staged-uptodate>
   </target>
 
-  <target name="docs.lib" depends="docs.pre-lib" unless="docs.library.available">
-    <stopwatch name="docs.lib.timer"/>
-    <mkdir dir="${build-docs.dir}/library"/>
-    <scaladoc
-      destdir="${build-docs.dir}/library"
-      doctitle="Scala Standard Library API (Scaladoc)"
-      docversion="${version.number}"
-      docfooter="epfl"
-      docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
-      docUncompilable="${src.dir}/library-aux"
-      skipPackages="scala.reflect.macros.internal:scala.reflect.internal:scala.reflect.io:scala.concurrent.impl"
-      sourcepath="${src.dir}"
-      classpathref="pack.compiler.path"
-      addparams="${scalac.args.all}"
-      docRootContent="${src.dir}/library/rootdoc.txt"
-      implicits="on"
-      diagrams="on"
-      groups="on"
-      rawOutput="${scaladoc.raw.output}"
-      noPrefixes="${scaladoc.no.prefixes}">
-      <src>
-        <files includes="${src.dir}/actors"/>
-        <files includes="${src.dir}/library"/>
-        <files includes="${src.dir}/reflect"/>
-        <files includes="${src.dir}/swing"/>
-        <files includes="${src.dir}/continuations/library"/>
-      </src>
-      <include name="**/*.scala"/>
-      <exclude name="reflect/Code.scala"/>
-      <exclude name="reflect/Print.scala"/>
-      <exclude name="reflect/Symbol.scala"/>
-      <exclude name="reflect/Tree.scala"/>
-      <exclude name="reflect/Type.scala"/>
-      <exclude name="runtime/*$.scala"/>
-      <exclude name="runtime/ScalaRunTime.scala"/>
-      <exclude name="runtime/StringAdd.scala"/>
-    </scaladoc>
-    <touch file="${build-docs.dir}/library.complete" verbose="no"/>
-    <stopwatch name="docs.lib.timer" action="total"/>
+  <target name="docs.man" depends="docs.lib">
+    <staged-uptodate stage="docs" project="manual">
+      <check><srcfiles dir="${src.dir}/manual"/></check>
+      <do>
+        <mkdir dir="${build.dir}/manmaker/classes"/>
+        <scalac
+          destdir="${build.dir}/manmaker/classes"
+          classpathref="pack.compiler.path"
+          srcdir="${src.dir}/manual"
+          includes="**/*.scala"
+          addparams="${scalac.args.all}"/>
+      </do>
+      <mkdir dir="${build-docs.dir}/manual/man/man1"/>
+      <mkdir dir="${build-docs.dir}/manual/html"/>
+      <mkdir dir="${build-docs.dir}/manual/genman/man1"/>
+      <taskdef name="genman"
+               classname="scala.tools.docutil.ManMaker"
+               classpathref="manual.classpath"/>
+      <genman command="fsc, scala, scalac, scaladoc, scalap"
+              htmlout="${build-docs.dir}/manual/html"
+              manout="${build-docs.dir}/manual/genman"/>
+      <!-- On Windows source and target files can't be the same ! -->
+      <fixcrlf
+        srcdir="${build-docs.dir}/manual/genman"
+        destdir="${build-docs.dir}/manual/man"
+        eol="unix" includes="**/*.1"/>
+      <copy todir="${build-docs.dir}/manual/html">
+        <fileset dir="${src.dir}/manual/scala/tools/docutil/resources">
+          <include name="**/*.html"/>
+          <include name="**/*.css"/>
+          <include name="**/*.gif"/>
+          <include name="**/*.png"/>
+        </fileset>
+      </copy>
+    </staged-uptodate>
   </target>
 
-  <target name="docs.pre-man" depends="docs.lib">
-    <doc-uptodate-check name="manual" srcdir="${src.dir}/manual"/>
+  <target name="docs.comp" depends="docs.man">
+    <staged-uptodate stage="docs" project="compiler">
+      <check><srcfiles dir="${src.dir}/compiler"/></check>
+      <do>
+        <stopwatch name="docs.compiler.timer"/>
+        <mkdir dir="${build-docs.dir}/compiler"/>
+        <scaladoc
+          destdir="${build-docs.dir}/compiler"
+          doctitle="Scala Compiler"
+          docversion="${version.number}"
+          docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
+          sourcepath="${src.dir}"
+          classpathref="pack.compiler.path"
+          srcdir="${src.dir}/compiler"
+          docRootContent="${src.dir}/compiler/rootdoc.txt"
+          addparams="${scalac.args.all}"
+          implicits="on"
+          diagrams="on"
+          groups="on"
+          rawOutput="${scaladoc.raw.output}"
+          noPrefixes="${scaladoc.no.prefixes}">
+          <include name="**/*.scala"/>
+        </scaladoc>
+        <stopwatch name="docs.compiler.timer" action="total"/>
+      </do>
+    </staged-uptodate>
   </target>
 
-  <target name="docs.manmaker" depends="docs.pre-man" unless="docs.manual.available">
-    <mkdir dir="${build.dir}/manmaker/classes"/>
-    <scalac
-      destdir="${build.dir}/manmaker/classes"
-      classpathref="pack.compiler.path"
-      srcdir="${src.dir}/manual"
-      includes="**/*.scala"
-      addparams="${scalac.args.all}"/>
+  <target name="docs.jline" depends="docs.start">
+    <staged-uptodate stage="docs" project="jline">
+      <check><srcfiles dir="${src.dir}/jline/src/main/java"/></check>
+      <do>
+        <stopwatch name="docs.jline.timer"/>
+        <mkdir dir="${build-docs.dir}/jline"/>
+        <scaladoc
+          destdir="${build-docs.dir}/jline"
+          doctitle="Scala JLine"
+          docversion="${version.number}"
+          sourcepath="${src.dir}"
+          classpathref="pack.compiler.path"
+          srcdir="${src.dir}/jline/src/main/java"
+          addparams="${scalac.args.all}"
+          implicits="on"
+          diagrams="on"
+          groups="on"
+          rawOutput="${scaladoc.raw.output}"
+          noPrefixes="${scaladoc.no.prefixes}">
+          <include name="**/*.scala"/>
+          <include name="**/*.java"/>
+        </scaladoc>
+        <stopwatch name="docs.jline.timer" action="total"/>
+      </do>
+    </staged-uptodate>
   </target>
 
-  <target name="docs.man" depends="docs.manmaker" unless="docs.manual.available">
-    <mkdir dir="${build-docs.dir}/manual/man/man1"/>
-    <mkdir dir="${build-docs.dir}/manual/html"/>
-    <mkdir dir="${build-docs.dir}/manual/genman/man1"/>
-    <taskdef name="genman"
-             classname="scala.tools.docutil.ManMaker"
-             classpathref="manual.classpath"/>
-    <genman command="fsc, scala, scalac, scaladoc, scalap"
-            htmlout="${build-docs.dir}/manual/html"
-            manout="${build-docs.dir}/manual/genman"/>
-    <!-- On Windows source and target files can't be the same ! -->
-    <fixcrlf
-      srcdir="${build-docs.dir}/manual/genman"
-      destdir="${build-docs.dir}/manual/man"
-      eol="unix" includes="**/*.1"/>
-    <copy todir="${build-docs.dir}/manual/html">
-      <fileset dir="${src.dir}/manual/scala/tools/docutil/resources">
-        <include name="**/*.html"/>
-        <include name="**/*.css"/>
-        <include name="**/*.gif"/>
-        <include name="**/*.png"/>
-      </fileset>
-    </copy>
-    <touch file="${build-docs.dir}/manual.complete" verbose="no"/>
+  <target name="docs.scalap" depends="docs.start">
+    <staged-uptodate stage="docs" project="scalap">
+      <check><srcfiles dir="${src.dir}/scalap"/></check>
+      <do>
+        <stopwatch name="docs.scalap.timer"/>
+        <mkdir dir="${build-docs.dir}/scalap"/>
+        <scaladoc
+          destdir="${build-docs.dir}/scalap"
+          doctitle="Scalap"
+          docversion="${version.number}"
+          docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
+          sourcepath="${src.dir}"
+          classpathref="pack.compiler.path"
+          srcdir="${src.dir}/scalap"
+          addparams="${scalac.args.all}"
+          implicits="on"
+          diagrams="on"
+          groups="on"
+          rawOutput="${scaladoc.raw.output}"
+          noPrefixes="${scaladoc.no.prefixes}">
+          <include name="**/*.scala"/>
+        </scaladoc>
+        <stopwatch name="docs.scalap.timer" action="total"/>
+      </do>
+    </staged-uptodate>
   </target>
 
-  <target name="docs.pre-comp" depends="docs.man">
-    <doc-uptodate-check name="compiler" srcdir="${src.dir}/compiler"/>
+  <target name="docs.partest" depends="docs.start">
+    <staged-uptodate stage="docs" project="partest">
+      <check><srcfiles dir="${src.dir}/partest"/></check>
+      <do>
+        <stopwatch name="docs.partest.timer"/>
+        <mkdir dir="${build-docs.dir}/scala-partest"/>
+        <scaladoc
+          destdir="${build-docs.dir}/scala-partest"
+          doctitle="Scala Parallel Testing Framework"
+          docversion="${version.number}"
+          sourcepath="${src.dir}"
+          classpathref="pack.compiler.path"
+          srcdir="${src.dir}/partest"
+          addparams="${scalac.args.all}"
+          implicits="on"
+          diagrams="on"
+          groups="on"
+          rawOutput="${scaladoc.raw.output}"
+          noPrefixes="${scaladoc.no.prefixes}">
+          <include name="**/*.scala"/>
+        </scaladoc>
+        <stopwatch name="docs.partest.timer" action="total"/>
+      </do>
+    </staged-uptodate>
   </target>
 
-  <target name="docs.comp" depends="docs.pre-comp" unless="docs.compiler.available">
-    <stopwatch name="docs.compiler.timer"/>
-    <mkdir dir="${build-docs.dir}/compiler"/>
-    <scaladoc
-      destdir="${build-docs.dir}/compiler"
-      doctitle="Scala Compiler"
-      docversion="${version.number}"
-      docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
-      sourcepath="${src.dir}"
-      classpathref="pack.compiler.path"
-      srcdir="${src.dir}/compiler"
-      docRootContent="${src.dir}/compiler/rootdoc.txt"
-      addparams="${scalac.args.all}"
-      implicits="on"
-      diagrams="on"
-      groups="on"
-      rawOutput="${scaladoc.raw.output}"
-      noPrefixes="${scaladoc.no.prefixes}">
-      <include name="**/*.scala"/>
-    </scaladoc>
-    <touch file="${build-docs.dir}/compiler.complete" verbose="no"/>
-    <stopwatch name="docs.compiler.timer" action="total"/>
-  </target>
-
-  <target name="docs.pre-jline" depends="docs.start">
-    <doc-uptodate-check name="jline" srcdir="${src.dir}/jline/src/main/java" />
-  </target>
-
-  <target name="docs.jline" depends="docs.pre-jline" unless="docs.jline.available">
-    <stopwatch name="docs.jline.timer"/>
-    <mkdir dir="${build-docs.dir}/jline"/>
-    <scaladoc
-      destdir="${build-docs.dir}/jline"
-      doctitle="Scala JLine"
-      docversion="${version.number}"
-      sourcepath="${src.dir}"
-      classpathref="pack.compiler.path"
-      srcdir="${src.dir}/jline/src/main/java"
-      addparams="${scalac.args.all}"
-      implicits="on"
-      diagrams="on"
-      groups="on"
-      rawOutput="${scaladoc.raw.output}"
-      noPrefixes="${scaladoc.no.prefixes}">
-      <include name="**/*.scala"/>
-      <include name="**/*.java"/>
-    </scaladoc>
-    <touch file="${build-docs.dir}/jline.complete" verbose="no"/>
-    <stopwatch name="docs.jline.timer" action="total"/>
-  </target>
-
-  <target name="docs.pre-scalap" depends="docs.start">
-    <doc-uptodate-check name="scalap" srcdir="${src.dir}/scalap" />
-  </target>
-
-  <target name="docs.scalap" depends="docs.pre-scalap" unless="docs.scalap.available">
-    <stopwatch name="docs.scalap.timer"/>
-    <mkdir dir="${build-docs.dir}/scalap"/>
-    <scaladoc
-      destdir="${build-docs.dir}/scalap"
-      doctitle="Scalap"
-      docversion="${version.number}"
-      docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
-      sourcepath="${src.dir}"
-      classpathref="pack.compiler.path"
-      srcdir="${src.dir}/scalap"
-      addparams="${scalac.args.all}"
-      implicits="on"
-      diagrams="on"
-      groups="on"
-      rawOutput="${scaladoc.raw.output}"
-      noPrefixes="${scaladoc.no.prefixes}">
-      <include name="**/*.scala"/>
-    </scaladoc>
-    <touch file="${build-docs.dir}/scalap.complete" verbose="no"/>
-    <stopwatch name="docs.scalap.timer" action="total"/>
-  </target>
-
-  <target name="docs.pre-partest" depends="docs.start">
-    <doc-uptodate-check name="partest" srcdir="${src.dir}/partest" />
-  </target>
-
-  <target name="docs.partest" depends="docs.pre-partest" unless="docs.partest.available">
-    <stopwatch name="docs.partest.timer"/>
-    <mkdir dir="${build-docs.dir}/scala-partest"/>
-    <scaladoc
-      destdir="${build-docs.dir}/scala-partest"
-      doctitle="Scala Parallel Testing Framework"
-      docversion="${version.number}"
-      sourcepath="${src.dir}"
-      classpathref="pack.compiler.path"
-      srcdir="${src.dir}/partest"
-      addparams="${scalac.args.all}"
-      implicits="on"
-      diagrams="on"
-      groups="on"
-      rawOutput="${scaladoc.raw.output}"
-      noPrefixes="${scaladoc.no.prefixes}">
-      <include name="**/*.scala"/>
-    </scaladoc>
-    <touch file="${build-docs.dir}/partest.complete" verbose="no"/>
-    <stopwatch name="docs.partest.timer" action="total"/>
-  </target>
-
-  <target name="docs.pre-continuations-plugin" depends="docs.start">
-    <doc-uptodate-check name="continuations-plugin" srcdir="${src.dir}/continuations/plugin" />
-  </target>
-
-  <target name="docs.continuations-plugin" depends="docs.pre-continuations-plugin" unless="docs.continuations-plugin.available">
-    <stopwatch name="docs.continuations-plugin.timer"/>
-    <mkdir dir="${build-docs.dir}/continuations-plugin"/>
-    <scaladoc
-      destdir="${build-docs.dir}/continuations-plugin"
-      doctitle="Delimited Continuations Compiler Plugin"
-      docversion="${version.number}"
-      sourcepath="${src.dir}"
-      classpathref="pack.compiler.path"
-      srcdir="${src.dir}/continuations/plugin"
-      addparams="${scalac.args.all}"
-      implicits="on"
-      diagrams="on"
-      groups="on"
-      rawOutput="${scaladoc.raw.output}"
-      noPrefixes="${scaladoc.no.prefixes}">
-      <include name="**/*.scala"/>
-    </scaladoc>
-    <touch file="${build-docs.dir}/continuations-plugin.complete" verbose="no"/>
-    <stopwatch name="docs.continuations-plugin.timer" action="total"/>
+  <target name="docs.continuations-plugin" depends="docs.start">
+    <staged-uptodate stage="docs" project="continuations-plugin">
+      <check><srcfiles dir="${src.dir}/continuations/plugin"/></check>
+      <do>
+        <stopwatch name="docs.continuations-plugin.timer"/>
+        <mkdir dir="${build-docs.dir}/continuations-plugin"/>
+        <scaladoc
+          destdir="${build-docs.dir}/continuations-plugin"
+          doctitle="Delimited Continuations Compiler Plugin"
+          docversion="${version.number}"
+          sourcepath="${src.dir}"
+          classpathref="pack.compiler.path"
+          srcdir="${src.dir}/continuations/plugin"
+          addparams="${scalac.args.all}"
+          implicits="on"
+          diagrams="on"
+          groups="on"
+          rawOutput="${scaladoc.raw.output}"
+          noPrefixes="${scaladoc.no.prefixes}">
+          <include name="**/*.scala"/>
+        </scaladoc>
+        <stopwatch name="docs.continuations-plugin.timer" action="total"/>
+      </do>
+    </staged-uptodate>
   </target>
 
   <target name="docs.done" depends="docs.man"/>
