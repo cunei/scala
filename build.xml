@@ -900,6 +900,58 @@ LOCAL DEPENDENCY (FORKJOIN)
     </sequential>
   </macrodef>
 
+  <macrodef name="staged-docs">
+    <attribute name="project"/>
+    <attribute name="dir" default="@{project}"/>
+    <attribute name="title"/>
+    <attribute name="docroot" default="NOT SET"/>
+    <element name="includes" implicit="true"/>
+
+    <sequential>
+      <staged-uptodate stage="docs" project="@{project}">
+        <check><srcfiles dir="${src.dir}/@{dir}"/></check>
+        <do>
+          <stopwatch name="docs.@{project}.timer"/>
+          <mkdir dir="${build-docs.dir}/@{project}"/>
+          <if><equals arg1="@{classpathref}" arg2="NOT SET"/><then>
+            <scaladoc
+              destdir="${build-docs.dir}/@{project}"
+              doctitle="@{title}"
+              docversion="${version.number}"
+              sourcepath="${src.dir}"
+              classpathref="pack.compiler.path"
+              srcdir="${src.dir}/@{dir}"
+              addparams="${scalac.args.all}"
+              implicits="on"
+              diagrams="on"
+              groups="on"
+              rawOutput="${scaladoc.raw.output}"
+              noPrefixes="${scaladoc.no.prefixes}">
+              <includes/>
+            </scaladoc>
+          </then><else>
+            <scaladoc
+              destdir="${build-docs.dir}/@{project}"
+              doctitle="@{title}"
+              docversion="${version.number}"
+              sourcepath="${src.dir}"
+              classpathref="pack.compiler.path"
+              srcdir="${src.dir}/@{dir}"
+              docRootContent="${src.dir}/@{project}/@{docroot}"
+              addparams="${scalac.args.all}"
+              implicits="on"
+              diagrams="on"
+              groups="on"
+              rawOutput="${scaladoc.raw.output}"
+              noPrefixes="${scaladoc.no.prefixes}">
+              <includes/>
+            </scaladoc>
+          </else></if>
+          <stopwatch name="docs.@{project}.timer" action="total"/>
+        </do>
+      </staged-uptodate>
+    </sequential>
+  </macrodef>
 
 <!-- ===========================================================================
 LOCAL REFERENCE BUILD (LOCKER)
@@ -1452,14 +1504,12 @@ DOCUMENTATION
       <do>
         <stopwatch name="docs.lib.timer"/>
         <mkdir dir="${build-docs.dir}/library"/>
+        <!-- last three attributes not supported by staged-docs: -->
         <scaladoc
           destdir="${build-docs.dir}/library"
           doctitle="Scala Standard Library API (Scaladoc)"
           docversion="${version.number}"
-          docfooter="epfl"
           docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
-          docUncompilable="${src.dir}/library-aux"
-          skipPackages="scala.reflect.macros.internal:scala.reflect.internal:scala.reflect.io:scala.concurrent.impl"
           sourcepath="${src.dir}"
           classpathref="pack.compiler.path"
           addparams="${scalac.args.all}"
@@ -1468,7 +1518,10 @@ DOCUMENTATION
           diagrams="on"
           groups="on"
           rawOutput="${scaladoc.raw.output}"
-          noPrefixes="${scaladoc.no.prefixes}">
+          noPrefixes="${scaladoc.no.prefixes}"
+          docfooter="epfl"
+          docUncompilable="${src.dir}/library-aux"
+          skipPackages="scala.reflect.macros.internal:scala.reflect.internal:scala.reflect.io:scala.concurrent.impl">
           <src>
             <files includes="${src.dir}/actors"/>
             <files includes="${src.dir}/library"/>
@@ -1529,137 +1582,34 @@ DOCUMENTATION
   </target>
 
   <target name="docs.comp" depends="docs.man">
-    <staged-uptodate stage="docs" project="compiler">
-      <check><srcfiles dir="${src.dir}/compiler"/></check>
-      <do>
-        <stopwatch name="docs.compiler.timer"/>
-        <mkdir dir="${build-docs.dir}/compiler"/>
-        <scaladoc
-          destdir="${build-docs.dir}/compiler"
-          doctitle="Scala Compiler"
-          docversion="${version.number}"
-          docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
-          sourcepath="${src.dir}"
-          classpathref="pack.compiler.path"
-          srcdir="${src.dir}/compiler"
-          docRootContent="${src.dir}/compiler/rootdoc.txt"
-          addparams="${scalac.args.all}"
-          implicits="on"
-          diagrams="on"
-          groups="on"
-          rawOutput="${scaladoc.raw.output}"
-          noPrefixes="${scaladoc.no.prefixes}">
-          <include name="**/*.scala"/>
-        </scaladoc>
-        <stopwatch name="docs.compiler.timer" action="total"/>
-      </do>
-    </staged-uptodate>
+    <staged-docs project="compiler" title="Scala Compiler" docroot="rootdoc.txt">
+      <include name="**/*.scala"/>
+    </staged-docs>
   </target>
 
   <target name="docs.jline" depends="docs.start">
-    <staged-uptodate stage="docs" project="jline">
-      <check><srcfiles dir="${src.dir}/jline/src/main/java"/></check>
-      <do>
-        <stopwatch name="docs.jline.timer"/>
-        <mkdir dir="${build-docs.dir}/jline"/>
-        <scaladoc
-          destdir="${build-docs.dir}/jline"
-          doctitle="Scala JLine"
-          docversion="${version.number}"
-          sourcepath="${src.dir}"
-          classpathref="pack.compiler.path"
-          srcdir="${src.dir}/jline/src/main/java"
-          addparams="${scalac.args.all}"
-          implicits="on"
-          diagrams="on"
-          groups="on"
-          rawOutput="${scaladoc.raw.output}"
-          noPrefixes="${scaladoc.no.prefixes}">
-          <include name="**/*.scala"/>
-          <include name="**/*.java"/>
-        </scaladoc>
-        <stopwatch name="docs.jline.timer" action="total"/>
-      </do>
-    </staged-uptodate>
+    <staged-docs project="jline" dir="jline/src/main/java" title="Scala JLine">
+      <include name="**/*.scala"/>
+      <include name="**/*.java"/>
+    </staged-docs>
   </target>
 
   <target name="docs.scalap" depends="docs.start">
-    <staged-uptodate stage="docs" project="scalap">
-      <check><srcfiles dir="${src.dir}/scalap"/></check>
-      <do>
-        <stopwatch name="docs.scalap.timer"/>
-        <mkdir dir="${build-docs.dir}/scalap"/>
-        <scaladoc
-          destdir="${build-docs.dir}/scalap"
-          doctitle="Scalap"
-          docversion="${version.number}"
-          docsourceurl="${scaladoc.url}€{FILE_PATH}.scala#L1"
-          sourcepath="${src.dir}"
-          classpathref="pack.compiler.path"
-          srcdir="${src.dir}/scalap"
-          addparams="${scalac.args.all}"
-          implicits="on"
-          diagrams="on"
-          groups="on"
-          rawOutput="${scaladoc.raw.output}"
-          noPrefixes="${scaladoc.no.prefixes}">
-          <include name="**/*.scala"/>
-        </scaladoc>
-        <stopwatch name="docs.scalap.timer" action="total"/>
-      </do>
-    </staged-uptodate>
+    <staged-docs project="jline" title="Scalap">
+      <include name="**/*.scala"/>
+    </staged-docs>
   </target>
 
   <target name="docs.partest" depends="docs.start">
-    <staged-uptodate stage="docs" project="partest">
-      <check><srcfiles dir="${src.dir}/partest"/></check>
-      <do>
-        <stopwatch name="docs.partest.timer"/>
-        <mkdir dir="${build-docs.dir}/scala-partest"/>
-        <scaladoc
-          destdir="${build-docs.dir}/scala-partest"
-          doctitle="Scala Parallel Testing Framework"
-          docversion="${version.number}"
-          sourcepath="${src.dir}"
-          classpathref="pack.compiler.path"
-          srcdir="${src.dir}/partest"
-          addparams="${scalac.args.all}"
-          implicits="on"
-          diagrams="on"
-          groups="on"
-          rawOutput="${scaladoc.raw.output}"
-          noPrefixes="${scaladoc.no.prefixes}">
-          <include name="**/*.scala"/>
-        </scaladoc>
-        <stopwatch name="docs.partest.timer" action="total"/>
-      </do>
-    </staged-uptodate>
+    <staged-docs project="partest" title="Scala Parallel Testing Framework">
+      <include name="**/*.scala"/>
+    </staged-docs>
   </target>
 
   <target name="docs.continuations-plugin" depends="docs.start">
-    <staged-uptodate stage="docs" project="continuations-plugin">
-      <check><srcfiles dir="${src.dir}/continuations/plugin"/></check>
-      <do>
-        <stopwatch name="docs.continuations-plugin.timer"/>
-        <mkdir dir="${build-docs.dir}/continuations-plugin"/>
-        <scaladoc
-          destdir="${build-docs.dir}/continuations-plugin"
-          doctitle="Delimited Continuations Compiler Plugin"
-          docversion="${version.number}"
-          sourcepath="${src.dir}"
-          classpathref="pack.compiler.path"
-          srcdir="${src.dir}/continuations/plugin"
-          addparams="${scalac.args.all}"
-          implicits="on"
-          diagrams="on"
-          groups="on"
-          rawOutput="${scaladoc.raw.output}"
-          noPrefixes="${scaladoc.no.prefixes}">
-          <include name="**/*.scala"/>
-        </scaladoc>
-        <stopwatch name="docs.continuations-plugin.timer" action="total"/>
-      </do>
-    </staged-uptodate>
+    <staged-docs project="continuations-plugin" dir="continuations/plugin" title="Delimited Continuations Compiler Plugin">
+      <include name="**/*.scala"/>
+    </staged-docs>
   </target>
 
   <target name="docs.done" depends="docs.man"/>
