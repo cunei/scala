@@ -1422,7 +1422,6 @@ SBT Compiler Interface
     <!-- Allow this to be overriden simply -->
     <property name="sbt.latest.version" value="0.12.2"/>
 
-
     <property name="sbt.src.dir" value="${build-sbt.dir}/${sbt.latest.version}/src"/>
     <property name="sbt.lib.dir" value="${build-sbt.dir}/${sbt.latest.version}/lib"/>
 
@@ -1620,7 +1619,7 @@ DOCUMENTATION
   </target>
 
 <!-- ===========================================================================
-BOOTRAPING TEST AND TEST SUITE
+BOOTRAPPING TEST AND TEST SUITE
 ============================================================================ -->
 
   <target name="test.stability" depends="pack.done, strap.done">
@@ -1628,7 +1627,6 @@ BOOTRAPING TEST AND TEST SUITE
     <!-- I think doing it this way means it will auto-pass on windows... that's the idea. If not, something like this. -->
     <!-- <exec osfamily="windows" executable="foo" failonerror="false" failifexecutionfails="false" /> -->
   </target>
-
 
   <target name="test.sbt" depends="sbt.compile"/>
 
@@ -1697,7 +1695,6 @@ BOOTRAPING TEST AND TEST SUITE
       </presentationtests>
     </partest>
   </target>
-
 
 <!-- currently disabled: test.ant, test.bc, test.positions, test.classload -->
   <target name="test.done" depends="test.osgi, test.sbt, test.interactive, test.continuations.suite, test.suite, test.scaladoc, test.stability"/>
