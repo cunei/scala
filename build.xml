@@ -1544,6 +1544,37 @@ DOCUMENTATION
     </staged-uptodate>
   </target>
 
+  <target name="docs.comp" depends="docs.start">
+    <staged-docs project="compiler" title="Scala Compiler" docroot="rootdoc.txt">
+      <include name="**/*.scala"/>
+    </staged-docs>
+  </target>
+
+  <target name="docs.jline" depends="docs.start">
+    <staged-docs project="jline" dir="jline/src/main/java" title="Scala JLine">
+      <include name="**/*.scala"/>
+      <include name="**/*.java"/>
+    </staged-docs>
+  </target>
+
+  <target name="docs.scalap" depends="docs.start">
+    <staged-docs project="jline" title="Scalap">
+      <include name="**/*.scala"/>
+    </staged-docs>
+  </target>
+
+  <target name="docs.partest" depends="docs.start">
+    <staged-docs project="partest" title="Scala Parallel Testing Framework">
+      <include name="**/*.scala"/>
+    </staged-docs>
+  </target>
+
+  <target name="docs.continuations-plugin" depends="docs.start">
+    <staged-docs project="continuations-plugin" dir="continuations/plugin" title="Delimited Continuations Compiler Plugin">
+      <include name="**/*.scala"/>
+    </staged-docs>
+  </target>
+
   <target name="docs.man" depends="docs.lib">
     <staged-uptodate stage="docs" project="manual">
       <check><srcfiles dir="${src.dir}/manual"/></check>
@@ -1581,40 +1612,7 @@ DOCUMENTATION
     </staged-uptodate>
   </target>
 
-  <target name="docs.comp" depends="docs.man">
-    <staged-docs project="compiler" title="Scala Compiler" docroot="rootdoc.txt">
-      <include name="**/*.scala"/>
-    </staged-docs>
-  </target>
-
-  <target name="docs.jline" depends="docs.start">
-    <staged-docs project="jline" dir="jline/src/main/java" title="Scala JLine">
-      <include name="**/*.scala"/>
-      <include name="**/*.java"/>
-    </staged-docs>
-  </target>
-
-  <target name="docs.scalap" depends="docs.start">
-    <staged-docs project="jline" title="Scalap">
-      <include name="**/*.scala"/>
-    </staged-docs>
-  </target>
-
-  <target name="docs.partest" depends="docs.start">
-    <staged-docs project="partest" title="Scala Parallel Testing Framework">
-      <include name="**/*.scala"/>
-    </staged-docs>
-  </target>
-
-  <target name="docs.continuations-plugin" depends="docs.start">
-    <staged-docs project="continuations-plugin" dir="continuations/plugin" title="Delimited Continuations Compiler Plugin">
-      <include name="**/*.scala"/>
-    </staged-docs>
-  </target>
-
-  <target name="docs.done" depends="docs.man"/>
-
-  <target name="docs.all" depends="docs.jline, docs.comp, docs.man, docs.lib, docs.scalap, docs.partest, docs.continuations-plugin"/>
+  <target name="docs.done" depends="docs.jline, docs.comp, docs.man, docs.lib, docs.scalap, docs.partest, docs.continuations-plugin"/>
 
   <target name="docs.clean">
     <delete dir="${build-docs.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
@@ -1949,11 +1947,11 @@ STABLE REFERENCE (STARR)
 FORWARDED TARGETS FOR PACKAGING
 ============================================================================ -->
 
-  <target name="distpack" depends="dist.done, docs.all">
+  <target name="distpack" depends="dist.done, docs.done">
     <ant antfile="${src.dir}/build/pack.xml" target="pack-all.done" inheritall="yes" inheritrefs="yes"/>
   </target>
 
-  <target name="distpack-maven" depends="dist.done, docs.all">
+  <target name="distpack-maven" depends="dist.done, docs.done">
     <ant antfile="${src.dir}/build/pack.xml" target="pack-maven.done" inheritall="yes" inheritrefs="yes"/>
   </target>
 
@@ -1984,7 +1982,7 @@ FORWARDED TARGETS FOR NIGHTLY BUILDS
     </antcall>
   </target>
 
-  <target name="nightly-nopt" depends="all.done, docs.all">
+  <target name="nightly-nopt" depends="all.done, docs.done">
     <!-- cannot antcall all.done, the properties defined in there (dist.dir) are not returned. need depends. -->
     <ant antfile="${src.dir}/build/pack.xml" target="pack-all.done" inheritall="yes" inheritrefs="yes"/>
   </target>
