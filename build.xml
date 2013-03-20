@@ -443,12 +443,6 @@ INITIALISATION
     <!-- Local libs (developer use.) -->
     <mkdir dir="${lib-extra.dir}"/>
 
-    <!-- Libraries only used for STARR -->
-    <path id="starr.dep.libs">
-      <fileset dir="${lib.dir}">
-        <include name="forkjoin.jar"/>
-      </fileset>
-    </path>
     <!-- Auxiliary libs placed on every classpath. -->
     <path id="aux.libs">
       <pathelement location="${ant.jar}"/>
@@ -478,17 +472,12 @@ INITIALISATION
       <pathelement location="${library.starr.jar}"/>
       <pathelement location="${reflect.starr.jar}"/>
       <pathelement location="${compiler.starr.jar}"/>
+      <pathelement location="${lib.dir}/forkjoin.jar"/>
       <path refid="aux.libs"/>
-      <path refid="starr.dep.libs"/>
     </path>
 
-    <path id="forkjoin.classpath">
-      <pathelement location="${build-libs.dir}/classes/forkjoin"/>
-    </path>
-
-    <path id="asm.classpath">
-      <pathelement location="${build-asm.dir}/classes/"/>
-    </path>
+    <path id="forkjoin.classpath" path="${build-libs.dir}/classes/forkjoin"/>
+    <path id="asm.classpath"      path="${build-asm.dir}/classes/"/>
 
     <!-- What to have on the compilation path when compiling during certain phases -->
 
@@ -510,9 +499,7 @@ INITIALISATION
       <path refid="asm.classpath"/>
     </path>
 
-    <path id="locker.compiler.path">
-      <path refid="locker.compiler.build.path"/>
-    </path>
+    <path id="locker.compiler.path"><path refid="locker.compiler.build.path"/></path>
 
     <path id="palo.bin.tool.path">
       <pathelement location="${build-palo.dir}/lib/scala-library.jar"/>
@@ -527,9 +514,7 @@ INITIALISATION
       <path refid="forkjoin.classpath"/>
       <path refid="aux.libs"/>
     </path>
-    <path id="quick.actors.build.path">
-      <path refid="quick.library.build.path"/>
-    </path>
+    <path id="quick.actors.build.path"><path refid="quick.library.build.path"/></path>
 
     <path id="quick.reflect.build.path">
       <path refid="quick.library.build.path"/>
@@ -542,9 +527,7 @@ INITIALISATION
       <path refid="asm.classpath"/>
     </path>
 
-    <path id="quick.compiler.path">
-      <path refid="quick.compiler.build.path"/>
-    </path>
+    <path id="quick.compiler.path"><path refid="quick.compiler.build.path"/></path>
 
     <path id="quick.repl.build.path">
       <path refid="quick.compiler.path"/>
@@ -552,9 +535,7 @@ INITIALISATION
       <pathelement location="${jline.jar}"/>
     </path>
 
-    <path id="quick.swing.build.path">
-      <path refid="quick.library.build.path"/>
-    </path>
+    <path id="quick.swing.build.path"><path refid="quick.library.build.path"/></path>
 
     <path id="quick.plugins.build.path">
       <path refid="quick.compiler.path"/>
@@ -598,9 +579,7 @@ INITIALISATION
       <pathelement location="${sbt.interface.jar}"/>
     </path>
 
-    <path id="test.positions.sub.build.path">
-      <pathelement location="${build-quick.dir}/classes/library"/>
-    </path>
+    <path id="test.positions.sub.build.path" path="${build-quick.dir}/classes/library"/>
 
     <path id="quick.bin.tool.path">
       <path refid="quick.repl.build.path"/>
@@ -950,9 +929,8 @@ PACKED LOCKER BUILD (PALO)
       <fileset dir="${build-locker.dir}/classes/library"/>
       <fileset dir="${build-libs.dir}/classes/forkjoin"/>
     </jar>
-    <jar destfile="${build-palo.dir}/lib/scala-reflect.jar" manifest="${basedir}/META-INF/MANIFEST.MF">
-      <fileset dir="${build-locker.dir}/classes/reflect"/>
-    </jar>
+    <jar destfile="${build-palo.dir}/lib/scala-reflect.jar" manifest="${basedir}/META-INF/MANIFEST.MF"
+      basedir="${build-locker.dir}/classes/reflect"/>
     <jar destfile="${build-palo.dir}/lib/scala-compiler.jar" manifest="${basedir}/META-INF/MANIFEST.MF">
       <fileset dir="${build-locker.dir}/classes/compiler"/>
       <fileset dir="${build-asm.dir}/classes/"/>
@@ -1033,9 +1011,7 @@ QUICK BUILD (QUICK)
            todir="${build-quick.dir}/classes/continuations-plugin"/>
         <!-- not very nice to create jar here but needed to load plugin -->
         <mkdir dir="${build-quick.dir}/misc/scala-devel/plugins"/>
-        <jar destfile="${build-quick.dir}/misc/scala-devel/plugins/continuations.jar">
-          <fileset dir="${build-quick.dir}/classes/continuations-plugin"/>
-        </jar>
+        <jar destfile="${build-quick.dir}/misc/scala-devel/plugins/continuations.jar" basedir="${build-quick.dir}/classes/continuations-plugin"/>
         <!-- might split off library part into its own ant target -->
         <scalacfork
           destdir="${build-quick.dir}/classes/continuations-library"
@@ -1956,25 +1932,12 @@ DISTRIBUTION
       <fileset dir="${src.dir}/library"/>
       <fileset dir="${src.dir}/continuations/library"/>
     </jar>
-    <jar destfile="${dist.dir}/src/scala-reflect-src.jar">
-      <fileset dir="${src.dir}/reflect"/>
-    </jar>
-    <jar destfile="${dist.dir}/src/scala-swing-src.jar">
-      <fileset dir="${src.dir}/swing"/>
-    </jar>
-    <jar destfile="${dist.dir}/src/scala-compiler-src.jar">
-      <fileset dir="${src.dir}/compiler"/>
-    </jar>
-    <jar destfile="${dist.dir}/src/scala-actors-src.jar">
-      <fileset dir="${src.dir}/actors"/>
-    </jar>
-    <jar destfile="${dist.dir}/src/scalap-src.jar">
-      <fileset dir="${src.dir}/scalap"/>
-    </jar>
-    <!-- Needed for Maven distribution -->
-    <jar destfile="${dist.dir}/src/scala-partest-src.jar">
-      <fileset dir="${src.dir}/partest"/>
-    </jar>
+    <jar destfile="${dist.dir}/src/scala-reflect-src.jar"  basedir="${src.dir}/reflect"/>
+    <jar destfile="${dist.dir}/src/scala-swing-src.jar"    basedir="${src.dir}/swing"/>
+    <jar destfile="${dist.dir}/src/scala-compiler-src.jar" basedir="${src.dir}/compiler"/>
+    <jar destfile="${dist.dir}/src/scala-actors-src.jar"   basedir="${src.dir}/actors"/>
+    <jar destfile="${dist.dir}/src/scalap-src.jar"         basedir="${src.dir}/scalap"/>
+    <jar destfile="${dist.dir}/src/scala-partest-src.jar"  basedir="${src.dir}/partest"/>
   </target>
 
   <target name="dist.latest.unix" depends="dist.base" unless="os.win">
@@ -2051,9 +2014,7 @@ STABLE REFERENCE (STARR)
       <fileset dir="${basedir}/src/actors"/>
       <fileset dir="${basedir}/src/forkjoin"/>
     </jar>
-    <jar destfile="${basedir}/lib/scala-reflect-src.jar">
-      <fileset dir="${basedir}/src/reflect"/>
-    </jar>
+    <jar destfile="${basedir}/lib/scala-reflect-src.jar" basedir="${basedir}/src/reflect"/>
     <jar destfile="${basedir}/lib/scala-compiler-src.jar">
       <fileset dir="${basedir}/src/compiler"/>
       <fileset dir="${basedir}/src/asm"/>
