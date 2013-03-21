@@ -8,7 +8,6 @@ SuperSabbus for Scala core, builds the scala library and compiler. It can also p
 <!-- ===========================================================================
 END-USER TARGETS
 ============================================================================ -->
-
   <target name="build"     depends="pack.done"      description="Builds the Scala compiler and library. Executables are in 'build/pack/bin'."/>
   <target name="clean"     depends="quick.clean"    description="Removes binaries of compiler and library. Distributions are untouched."/>
   <target name="test"      depends="test.done"      description="Runs test suite and bootstrapping test on Scala compiler and library."/>
@@ -42,7 +41,7 @@ END-USER TARGETS
   <!-- must use depends for all.done, not antcall: need the properties defined in there (dist.dir) -->
   <target name="nightly-nopt" depends="all.done, docs.done">
     <ant antfile="${src.dir}/build/pack.xml" target="pack-all.done" inheritall="yes" inheritrefs="yes"/></target>
-  <target name="nightly"><optimize name="nightly-nopt"/></target>
+  <target name="nightly"><optimized name="nightly-nopt"/></target>
 
   <target name="nightly.checkall">
     <antcall target="nightly-nopt"> <param name="partest.scalacopts" value="-Ycheck:all"/></antcall></target>
