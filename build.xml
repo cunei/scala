@@ -958,64 +958,19 @@ LOCAL REFERENCE BUILD (LOCKER)
 ============================================================================ -->
 
   <target name="locker.start" depends="asm.done, forkjoin.done">
-    <condition property="locker.locked">
-      <available file="${build-locker.dir}/locker.locked"/>
-    </condition>
-  </target>
+    <condition property="locker.locked"><available file="${build-locker.dir}/locker.locked"/></condition></target>
 
-  <target name="locker.lib" depends="asm.done, forkjoin.done" unless="locker.locked">
+  <target name="locker.lib"     depends="locker.start" unless="locker.locked">
     <staged-build with="starr" stage="locker" project="library" srcpath="${src.dir}/library" includes="lib.includes">
-      <pre><staged-javac stage="locker" project="library"/></pre>
-    </staged-build>
-  </target>
+            <pre><staged-javac stage="locker" project="library"/></pre></staged-build></target>
 
-  <target name="locker.reflect" depends="locker.lib" unless="locker.locked">
-    <staged-build with="starr" stage="locker" project="reflect"/>
-  </target>
+  <target name="locker.reflect" depends="locker.lib"     unless="locker.locked"> <staged-build with="starr" stage="locker" project="reflect"/></target>
+  <target name="locker.comp"    depends="locker.reflect" unless="locker.locked"> <staged-build with="starr" stage="locker" project="compiler"/></target>
 
-  <target name="locker.comp" depends="locker.reflect" unless="locker.locked">
-    <staged-build with="starr" stage="locker" project="compiler"/>
-  </target>
-
-  <target name="locker.done" depends="locker.comp">
-    <touch file="${build-locker.dir}/locker.locked" verbose="no"/>
-  </target>
-
-  <target name="locker.clean" depends="palo.clean">
-    <delete dir="${build-locker.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
-
-  <target name="locker.unlock">
-    <delete file="${build-locker.dir}/*.complete"/>
-    <delete file="${build-locker.dir}/locker.locked" />
-  </target>
-
-<!-- ===========================================================================
-PACKED LOCKER BUILD (PALO)
-============================================================================ -->
-
-  <target name="palo.done" depends="locker.done">
-    <mkdir dir="${build-palo.dir}/lib"/>
-    <jar destfile="${build-palo.dir}/lib/scala-library.jar">
-      <fileset dir="${build-locker.dir}/classes/library"/>
-      <fileset dir="${build-libs.dir}/classes/forkjoin"/>
-    </jar>
-    <jar destfile="${build-palo.dir}/lib/scala-reflect.jar" manifest="${basedir}/META-INF/MANIFEST.MF"
-      basedir="${build-locker.dir}/classes/reflect"/>
-    <jar destfile="${build-palo.dir}/lib/scala-compiler.jar" manifest="${basedir}/META-INF/MANIFEST.MF">
-      <fileset dir="${build-locker.dir}/classes/compiler"/>
-      <fileset dir="${build-asm.dir}/classes/"/>
-    </jar>
-    <copy file="${jline.jar}" toDir="${build-palo.dir}/lib"/>
-  </target>
-
-  <target name="palo.bin" depends="palo.done">
-    <staged-bin stage="palo"/>
-  </target>
-
-  <target name="palo.clean" depends="quick.clean">
-    <delete dir="${build-palo.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
+  <target name="locker.done"    depends="locker.comp"> <touch file="${build-locker.dir}/locker.locked" verbose="no"/></target>
+  <target name="locker.clean"   depends="palo.clean">  <delete dir="${build-locker.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
+  <target name="locker.unlock"> <delete file="${build-locker.dir}/locker.locked"/>
+                                <delete file="${build-locker.dir}/*.complete"/></target>
 
 <!-- ===========================================================================
 QUICK BUILD (QUICK)
@@ -1035,9 +990,7 @@ QUICK BUILD (QUICK)
     </staged-build>
   </target>
 
-  <target name="quick.reflect" depends="quick.lib">
-    <staged-build with="locker" stage="quick" project="reflect"/>
-  </target>
+  <target name="quick.reflect" depends="quick.lib"> <staged-build with="locker" stage="quick" project="reflect"/> </target>
 
   <target name="quick.comp" depends="quick.reflect">
     <staged-build with="locker" stage="quick" project="compiler"/>
@@ -1392,27 +1345,40 @@ BOOTSTRAPPING BUILD (STRAP)
     </staged-build>
   </target>
 
-  <target name="strap.reflect" depends="strap.lib">
-    <staged-build with="pack" stage="strap" project="reflect"/>
-  </target>
+  <target name="strap.reflect" depends="strap.lib"> <staged-build with="pack" stage="strap" project="reflect"/> </target>
 
-  <target name="strap.comp" depends="strap.reflect">
-    <staged-build with="pack" stage="strap" project="compiler"/>
-  </target>
+  <target name="strap.comp"    depends="strap.reflect"> <staged-build with="pack" stage="strap" project="compiler"/> </target>
 
-  <target name="strap.done" depends="strap.comp"/>
+  <target name="strap.done"    depends="strap.comp"/>
 
   <target name="strap.clean">
     <delete dir="${build-strap.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
   </target>
 
+
 <!-- ===========================================================================
-LIBRARIES (Forkjoin, ASM)
+PACKED LOCKER BUILD (PALO)
 ============================================================================ -->
 
-  <target name="libs.clean" depends="pack.clean, asm.clean">
-    <delete dir="${build-libs.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
+  <target name="palo.done" depends="locker.done">
+    <mkdir dir="${build-palo.dir}/lib"/>
+    <jar destfile="${build-palo.dir}/lib/scala-library.jar">
+      <fileset dir="${build-locker.dir}/classes/library"/>
+      <fileset dir="${build-libs.dir}/classes/forkjoin"/>
+    </jar>
+    <jar destfile="${build-palo.dir}/lib/scala-reflect.jar" manifest="${basedir}/META-INF/MANIFEST.MF"
+      basedir="${build-locker.dir}/classes/reflect"/>
+    <jar destfile="${build-palo.dir}/lib/scala-compiler.jar" manifest="${basedir}/META-INF/MANIFEST.MF">
+      <fileset dir="${build-locker.dir}/classes/compiler"/>
+      <fileset dir="${build-asm.dir}/classes/"/>
+    </jar>
+    <copy file="${jline.jar}" toDir="${build-palo.dir}/lib"/>
   </target>
+
+  <target name="palo.bin" depends="palo.done"> <staged-bin stage="palo"/></target>
+  <target name="palo.clean" depends="quick.clean"> <delete dir="${build-palo.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
+
+  <target name="libs.clean" depends="pack.clean, asm.clean"> <delete dir="${build-libs.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
 
 <!-- ===========================================================================
 SBT Compiler Interface
@@ -1622,7 +1588,8 @@ DOCUMENTATION
 BOOTRAPPING TEST AND TEST SUITE
 ============================================================================ -->
 
-  <target name="test.stability" depends="pack.done, strap.done">
+  <!-- compare {quick,strap}/(lib|reflect|comp) -->
+  <target name="test.stability" depends="quick.lib, quick.reflect, quick.comp, strap.lib, strap.reflect, strap.comp">
     <exec osfamily="unix" vmlauncher="false" executable="${basedir}/tools/stability-test.sh" failonerror="true" />
     <!-- I think doing it this way means it will auto-pass on windows... that's the idea. If not, something like this. -->
     <!-- <exec osfamily="windows" executable="foo" failonerror="false" failifexecutionfails="false" /> -->
