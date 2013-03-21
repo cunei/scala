@@ -1380,12 +1380,12 @@ DOCUMENTATION
 
   <target name="docs.lib" depends="docs.start">
     <staged-uptodate stage="docs" project="library">
-      <check><source-includes>
+      <check><srcfiles dir="${src.dir}">>
         <include name="library/**"/>
         <include name="swing/**"/>
         <include name="actors/**"/>
         <include name="reflect/**"/>
-      </source-includes></check>
+      </srcfiles></check>
       <do>
         <stopwatch name="docs.lib.timer"/>
         <mkdir dir="${build-docs.dir}/library"/>
