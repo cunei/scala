@@ -1462,7 +1462,7 @@ DOCUMENTATION
     </staged-docs>
   </target>
 
-  <target name="docs.man" depends="docs.lib">
+  <target name="docs.man" depends="docs.start">
     <staged-uptodate stage="docs" project="manual">
       <check><srcfiles dir="${src.dir}/manual"/></check>
       <do>
