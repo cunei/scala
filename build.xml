@@ -603,6 +603,7 @@ LOCAL DEPENDENCY (FORKJOIN)
     <attribute name="stage" default="NOT SET"/>    <!-- current stage (locker, quick, strap) -->
     <attribute name="project" default="NOT SET"/>  <!-- project: library/reflect/compiler/actors -->
     <attribute name="destproject" default="@{project}"/> <!-- overrides the output directory; used when building multiple projects into the same directory-->
+    <attribute name="args" default=""/>
 
     <sequential>
       <javac
@@ -610,7 +611,7 @@ LOCAL DEPENDENCY (FORKJOIN)
         destdir="${build-@{stage}.dir}/classes/@{destproject}"
         includes="**/*.java"
         target="1.6" source="1.5">
-          <compilerarg line="${javac.args} -XDignore.symbol.file"/>
+          <compilerarg line="${javac.args} @{args}"/>
           <classpath refid="@{stage}.@{destproject}.build.path"/>
       </javac>
     </sequential>
@@ -830,7 +831,8 @@ LOCAL REFERENCE BUILD (LOCKER)
 
   <target name="locker.lib"     depends="locker.start" unless="locker.locked">
     <staged-build with="starr" stage="locker" project="library" srcpath="${src.dir}/library" includes="lib.includes">
-            <pre><staged-javac stage="locker" project="library"/></pre></staged-build></target>
+            <pre><staged-javac stage="locker" project="library" args="-XDignore.symbol.file"/></pre></staged-build></target>
+            <!-- TODO: args="-XDignore.symbol.file" necessary?? -->
 
   <target name="locker.reflect" depends="locker.lib"     unless="locker.locked"> <staged-build with="starr" stage="locker" project="reflect"/></target>
   <target name="locker.comp"    depends="locker.reflect" unless="locker.locked"> <staged-build with="starr" stage="locker" project="compiler"/></target>
@@ -847,7 +849,7 @@ QUICK BUILD (QUICK)
   <target name="quick.lib" depends="quick.start">
     <staged-build with="locker" stage="quick" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
-        <staged-javac stage="quick" project="library"/>
+        <staged-javac stage="quick" project="library" args="-XDignore.symbol.file"/> <!-- TODO: args="-XDignore.symbol.file" necessary?? -->
         <staged-javac stage="quick" project="actors" destproject="library"/>
       </pre>
       <post>
@@ -1048,7 +1050,7 @@ BOOTSTRAPPING BUILD (STRAP)
   <target name="strap.lib" depends="quick.done">
     <staged-build with="quick" stage="strap" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
       <pre>
-        <staged-javac stage="strap" project="library"/>
+        <staged-javac stage="strap" project="library" args="-XDignore.symbol.file"/> <!-- TODO: args="-XDignore.symbol.file" necessary?? -->
         <staged-javac stage="strap" project="actors" destproject="library"/>
       </pre>
       <post>
