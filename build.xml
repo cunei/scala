@@ -245,8 +245,7 @@ PROPERTIES
 <!-- ===========================================================================
 INITIALISATION
 ============================================================================ -->
-
-  <target name="init.jars.check">
+  <target name="desired.jars.uptodate">
     <patternset id="desired.jars">
       <include name="lib/**/*.desired.sha1"/>
       <include name="test/files/**/*.desired.sha1"/>
@@ -259,8 +258,7 @@ INITIALISATION
     </uptodate>
   </target>
 
-  <!-- need to use clunky unless style since ant-contrib is not loaded (we're preparing that here) -->
-  <target name="init.jars" depends="init.jars.check" unless="lib.jars.uptodate">
+  <target name="boot" depends="desired.jars.uptodate" unless="lib.jars.uptodate">
     <echo level="warn" message="Updating bootstrap libs.  (To do this by hand, run ./pull-binary-libs.sh)"/>
     <exec osfamily="unix" vmlauncher="false" executable="./pull-binary-libs.sh" failifexecutionfails="true" />
     <exec osfamily="windows" vmlauncher="false" executable="pull-binary-libs.sh" failifexecutionfails="true" />
@@ -271,18 +269,18 @@ INITIALISATION
     </touch>
   </target>
 
+  <target name="init" depends="boot">
+    <!-- Set up Ant contrib tasks so we can use <if><then><else> instead of the clunky `unless` attribute -->
+    <taskdef resource="net/sf/antcontrib/antlib.xml" classpath="${lib.dir}/ant/ant-contrib.jar"/>
+
   <!-- Add our maven ant tasks -->
-  <target name="init.maven.tasks" depends="init.jars.check" unless="init.maven.tasks.finished">
     <path id="maven-ant-tasks.classpath" path="${lib.dir}/ant/maven-ant-tasks-2.1.1.jar" />
     <typedef resource="org/apache/maven/artifact/ant/antlib.xml" uri="urn:maven-artifact-ant" classpathref="maven-ant-tasks.classpath" />
 
-    <property name="init.maven.tasks.finished" value="true" />
-  </target>
-
-  <target name="init.extra.tasks" depends="init.maven.tasks" unless="init.extra.tasks.finished">
     <artifact:dependencies pathId="extra.tasks.classpath" filesetId="extra.tasks.fileset">
       <dependency groupId="biz.aQute" artifactId="bnd" version="1.50.0"/>
     </artifact:dependencies>
+
     <!-- Pax runner -->
     <property name="pax.exam.version" value="2.5.0"/>
     <artifact:dependencies pathId="pax.exam.classpath" filesetId="pax.exam.fileset">
@@ -296,66 +294,36 @@ INITIALISATION
       <dependency groupId="junit" artifactId="junit" version="4.10"/>
       <dependency groupId="org.apache.felix" artifactId="org.apache.felix.framework" version="3.2.2"/>
     </artifact:dependencies>
+
     <!-- BND support -->
     <typedef resource="aQute/bnd/ant/taskdef.properties" classpathref="extra.tasks.classpath" />
-    <property name="init.maven.tasks.finished" value="true" />
-  </target>
+
 
   <!-- Resolve maven dependencies -->
-  <target name="init.maven.jars" depends="init.maven.tasks">
-    <!-- This target has an issue where if the user directory does not exist, we BOMB. ugh. -->
     <mkdir dir="${user.home}/.m2/repository"/>
+    <!-- This task has an issue where if the user directory does not exist, so we create it above. UGH. -->
     <artifact:dependencies pathId="dependency.classpath" filesetId="dependency.fileset">
       <!--<dependency groupId="com.typesafe" artifactId="config" version="0.4.0"/>-->
     </artifact:dependencies>
-  </target>
 
   <!-- Determines OSGi string + maven extension. -->
-  <target name="init.hasbuildnum">
-    <condition property="version.hasbuildnum">
-      <not><equals arg1="${version.bnum}" arg2="0"/></not>
-    </condition>
-  </target>
-  <target name="init.build.snapshot" unless="build.release">
-    <property name="maven.version.suffix" value="-SNAPSHOT"/>
-  </target>
-  <target name="init.build.release" if="build.release" depends="init.hasbuildnum, init.build.snapshot">
-    <property name="maven.version.suffix" value=""/>
-  </target>
-  <target name="init.build.nopatch.release" unless="version.hasbuildnum" depends="init.hasbuildnum">
-    <property name="version.suffix" value=""/>
-  </target>
-  <!-- funny thing, ant is.  Can only specify *one* property in if check.  Guaranteed that both are true here,
-       since properties are immutable.  -->
-  <target name="init.build.patch.release" if="version.hasbuildnum" depends="init.build.nopatch.release">
-    <property name="version.suffix" value="-${version.bnum}"/>
-  </target>
 
-  <target name="init.hasmavensuffix" if="build.release" depends="init.build.patch.release, init.build.release">
-    <condition property="version.hasmavensuffix">
-      <not><equals arg1="${maven.version.suffix}" arg2=""/></not>
-    </condition>
-  </target>
+    <if><isset property="version.bnum"/><then>
+      <property name="version.suffix" value="-${version.bnum}"/>
+    </then><else>
+      <property name="version.suffix" value=""/>
+    </else></if>
 
-  <target name="init.osgi.suffix" if="version.hasmavensuffix" depends="init.hasmavensuffix">
-    <property name="osgi.version.suffix" value="${maven.version.suffix}"/>
-  </target>
-
-  <target name="init.osgi.suffix.final" if="build.release" unless="version.hasmavensuffix" depends="init.hasmavensuffix">
-    <property name="osgi.version.suffix" value="-VFINAL"/>
-  </target>
-
-  <target name="init.osgi.suffix.snapshot" unless="build.release" depends="init.hasmavensuffix">
-    <property name="osgi.version.suffix" value=""/>
-  </target>
-
-  <target name="init.build.suffix.done" depends="init.build.release, init.build.patch.release, init.osgi.suffix, init.osgi.suffix.final, init.osgi.suffix.snapshot"/>
-
-  <target name="init.version.git" depends="init.build.suffix.done">
-    <!-- Find out whether we are running on Windows -->
-    <condition property="os.win">
-      <os family="windows"/>
-    </condition>
+    <if><isset property="maven.version.suffix"/><then>
+      <property name="osgi.version.suffix" value="${maven.version.suffix}"/>
+    </then><else>
+      <if><isset property="build.release"/><then>
+        <property name="osgi.version.suffix" value="-VFINAL"/>
+      </then><else>
+        <property name="maven.version.suffix" value="-SNAPSHOT"/>
+        <property name="osgi.version.suffix" value=""/>
+      </else></if>
+    </else></if>
 
     <exec osfamily="unix" executable="tools/get-scala-commit-sha" outputproperty="git.commit.sha" failifexecutionfails="false" />
     <exec osfamily="windows" executable="cmd.exe" outputproperty="git.commit.sha" failifexecutionfails="false">
@@ -374,63 +342,58 @@ INITIALISATION
     <property name="git.commit.date" value="unknown"/>
 
     <!-- We use the git describe to determine the OSGi modifier for our build. -->
-    <property
-      name="maven.version.number"
+    <property name="maven.version.number"
       value="${version.major}.${version.minor}.${version.patch}${version.suffix}${maven.version.suffix}"/>
-    <property
-      name="osgi.version.number"
+    <property name="osgi.version.number"
       value="${version.major}.${version.minor}.${version.patch}.v${git.commit.date}${version.suffix}${osgi.version.suffix}-${git.commit.sha}"/>
-  </target>
 
-  <target name="init.version.snapshot" unless="build.release" depends="init.version.git">
-     <property
-      name="version.number"
-      value="${version.major}.${version.minor}.${version.patch}${version.suffix}-${git.commit.date}-${git.commit.sha}"/>
-  </target>
+    <if><isset property="build.release"/><then>
+      <property name="version.number" value="${maven.version.number}"/>
+    </then><else>
+      <property name="version.number" value="${version.major}.${version.minor}.${version.patch}${version.suffix}-${git.commit.date}-${git.commit.sha}"/>
+    </else></if>
 
-  <target name="init.version.release" if="build.release" depends="init.version.git">
-     <property
-      name="version.number"
-      value="${maven.version.number}"/>
-  </target>
+    <condition property="has.java6">
+        <equals arg1="${ant.java.version}" arg2="1.6"/>
+    </condition>
+    <condition property="has.java7">
+        <equals arg1="${ant.java.version}" arg2="1.7"/>
+    </condition>
+    <condition property="has.unsupported.jdk">
+       <not><or>
+         <isset property="has.java7" />
+         <isset property="has.java6" />
+       </or></not>
+    </condition>
 
-  <target name="init.version.done" depends="init.version.release, init.version.snapshot"/>
+    <fail if="has.unsupported.jdk" message="JDK ${ant.java.version} is not supported by this build!"/>
 
-  <target name="init.testjava6">
-      <condition property="has.java6">
-          <equals arg1="${ant.java.version}" arg2="1.6"/>
-      </condition>
-      <condition property="has.java7">
-          <equals arg1="${ant.java.version}" arg2="1.7"/>
-      </condition>
-      <condition property="has.unsupported.jdk">
-         <not><or>
-           <isset property="has.java7" />
-           <isset property="has.java6" />
-         </or></not>
-      </condition>
-  </target>
+    <if><isset property="has.java7"/><then>
+      <echo level="warning"> You are using JDK7 for this build.
+        While this will be able to build most of Scala, it will not build the Swing project.
+        You will be unable to create a distribution.
+      </echo>
+    </then></if>
 
-  <target name="init.fail.bad.jdk" depends="init.testjava6">
-    <fail if="has.unsupported.jdk"
-          message="JDK ${ant.java.version} is not supported by this build!"/>
-  </target>
-  <target name="init.warn.jdk7" depends="init.testjava6" if="has.java7">
-     <echo level="warning"> You are using JDK7 for this build.  While this will be able to build most of Scala, it will
-       not build the Swing project.   You will be unable to create a distribution.
-     </echo>
-  </target>
+    <!-- Allow this to be overridden simply -->
+    <property name="sbt.latest.version" value="0.12.2"/>
 
-  <target name="init" depends="init.jars, init.maven.jars, init.version.done, init.fail.bad.jdk, init.warn.jdk7, init.extra.tasks, init.sbt">
-    <property name="scalac.args.always" value="-Yreify-copypaste" />
+    <property name="sbt.src.dir" value="${build-sbt.dir}/${sbt.latest.version}/src"/>
+    <property name="sbt.lib.dir" value="${build-sbt.dir}/${sbt.latest.version}/lib"/>
+
+    <property name="sbt.interface.jar" value="${sbt.lib.dir}/interface.jar"/>
+    <property name="sbt.interface.url" value="http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/interface/${sbt.latest.version}/jars/interface.jar"/>
+    <property name="sbt.interface.src.jar" value="${sbt.src.dir}/compiler-interface-src.jar"/>
+    <property name="sbt.interface.src.url" value="http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/compiler-interface/${sbt.latest.version}/jars/compiler-interface-src.jar"/>
+
+
+    <property name="scalac.args.always" value="" />
   <!-- scalac.args.optimise is selectively overridden in certain antcall tasks. -->
     <property name="scalac.args.optimise" value=""/>
     <property name="scalac.args.all" value="${scalac.args.always} ${scalac.args} ${scalac.args.optimise}"/>
     <property name="scalac.args.locker" value="${scalac.args.all}"/>
     <property name="scalac.args.quick" value="${scalac.args.all}"/>
     <property name="scalac.args.strap" value="${scalac.args.quick}"/>
-    <!-- Setting-up Ant contrib tasks -->
-    <taskdef resource="net/sf/antcontrib/antlib.xml" classpath="${lib.dir}/ant/ant-contrib.jar"/>
     <!-- This is the start time for the distribution -->
     <tstamp prefix="time">
       <format property="human" pattern="d MMMM yyyy, HH:mm:ss" locale="en,US"/>
@@ -515,6 +478,7 @@ INITIALISATION
       <path refid="forkjoin.classpath"/>
       <path refid="aux.libs"/>
     </path>
+
     <path id="quick.actors.build.path"><path refid="quick.library.build.path"/></path>
 
     <path id="quick.reflect.build.path">
@@ -1384,49 +1348,36 @@ PACKED LOCKER BUILD (PALO)
 SBT Compiler Interface
 ============================================================================ -->
 
-  <target name="init.sbt">
-    <!-- Allow this to be overriden simply -->
-    <property name="sbt.latest.version" value="0.12.2"/>
-
-    <property name="sbt.src.dir" value="${build-sbt.dir}/${sbt.latest.version}/src"/>
-    <property name="sbt.lib.dir" value="${build-sbt.dir}/${sbt.latest.version}/lib"/>
-
-    <property name="sbt.interface.jar" value="${sbt.lib.dir}/interface.jar"/>
-    <property name="sbt.interface.url" value="http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/interface/${sbt.latest.version}/jars/interface.jar"/>
-    <property name="sbt.interface.src.jar" value="${sbt.src.dir}/compiler-interface-src.jar"/>
-    <property name="sbt.interface.src.url" value="http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/compiler-interface/${sbt.latest.version}/jars/compiler-interface-src.jar"/>
-
-    <!-- Ensure directories exist -->
-    <mkdir dir="${sbt.src.dir}"/>
-    <mkdir dir="${sbt.lib.dir}"/>
-
-    <condition property="sbt.available">
-      <and>
-        <available file="${sbt.interface.jar}"/>
-        <available file="${sbt.interface.src.jar}"/>
-      </and>
-    </condition>
-  </target>
-
   <target name="sbt.compile" depends="quick.done">
-    <get src="${sbt.interface.url}" dest="${sbt.interface.jar}"/>
-    <get src="${sbt.interface.src.url}" dest="${sbt.interface.src.jar}"/>
-    <!-- Explode sources -->
-    <unzip src="${sbt.interface.src.jar}" dest="${sbt.src.dir}"/>
+    <if><not><and>
+          <available file="${sbt.interface.jar}"/>
+          <available file="${sbt.interface.src.jar}"/>
+        </and></not><then>
 
-    <stopwatch name="quick.sbt-interface.timer"/>
-    <mkdir dir="${build-sbt.dir}/classes"/>
-    <scalacfork
-      destdir="${build-sbt.dir}/classes"
-      compilerpathref="quick.compiler.path"
-      params="${scalac.args.quick}"
-      srcdir="${sbt.src.dir}"
-      jvmargs="${scalacfork.jvmargs}">
-      <include name="**/*.scala"/>
-      <compilationpath refid="sbt.compile.build.path"/>
-    </scalacfork>
-    <touch file="${build-sbt.dir}/sbt-interface.complete" verbose="no"/>
-    <stopwatch name="quick.sbt-interface.timer" action="total"/>
+      <!-- Ensure directories exist -->
+      <mkdir dir="${sbt.src.dir}"/>
+      <mkdir dir="${sbt.lib.dir}"/>
+
+      <get src="${sbt.interface.url}" dest="${sbt.interface.jar}"/>
+      <get src="${sbt.interface.src.url}" dest="${sbt.interface.src.jar}"/>
+
+      <!-- Explode sources -->
+      <unzip src="${sbt.interface.src.jar}" dest="${sbt.src.dir}"/>
+
+      <stopwatch name="quick.sbt-interface.timer"/>
+      <mkdir dir="${build-sbt.dir}/classes"/>
+      <scalacfork
+        destdir="${build-sbt.dir}/classes"
+        compilerpathref="quick.compiler.path"
+        params="${scalac.args.quick}"
+        srcdir="${sbt.src.dir}"
+        jvmargs="${scalacfork.jvmargs}">
+        <include name="**/*.scala"/>
+        <compilationpath refid="sbt.compile.build.path"/>
+      </scalacfork>
+      <touch file="${build-sbt.dir}/sbt-interface.complete" verbose="no"/>
+      <stopwatch name="quick.sbt-interface.timer" action="total"/>
+    </then></if>
   </target>
 
   <target name="sbt.clean" depends="init">
@@ -1810,17 +1761,13 @@ DISTRIBUTION
     <jar destfile="${dist.dir}/src/scala-partest-src.jar"  basedir="${src.dir}/partest"/>
   </target>
 
-  <target name="dist.latest.unix" depends="dist.base" unless="os.win">
-    <symlink link="${dists.dir}/latest" resource="${dist.name}" overwrite="yes"/>
+  <target name="dist.latest" depends="dist.base">
+    <if><not><os family="windows"/></not><then>
+      <symlink link="${dists.dir}/latest" resource="${dist.name}" overwrite="yes"/>
+    </then><else>
+      <copydir dest="${dists.dir}/latest" src="${dist.dir}"/>
+    </else></if>
   </target>
-
-  <target name="dist.latest.win" depends="dist.base" if="os.win">
-    <copy todir="${dists.dir}/latest">
-      <fileset dir="${dist.dir}"/>
-    </copy>
-  </target>
-
-  <target name="dist.latest" depends="dist.latest.unix,dist.latest.win"/>
 
   <target name="dist.partial" depends="dist.base, dist.latest"/>
 
