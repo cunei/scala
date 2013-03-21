@@ -1504,7 +1504,7 @@ DOCUMENTATION
 <!-- ===========================================================================
 DISTRIBUTION
 ============================================================================ -->
-  <target name="dist.start" depends="pack.done, osgi.done">
+  <target name="dist.base" depends="pack.done, osgi.done">
     <property name="dist.name" value="scala-${version.number}"/>
     <property name="dist.dir" value="${dists.dir}/${dist.name}"/>
 
@@ -1523,9 +1523,7 @@ DISTRIBUTION
           overwrite="yes"/>
       </sequential>
     </macrodef>
-  </target>
 
-  <target name="dist.base" depends="dist.start">
     <mkdir dir="${dist.dir}/lib"/>
     <copy toDir="${dist.dir}/lib">
       <fileset dir="${build-pack.dir}/lib">
@@ -1576,14 +1574,14 @@ DISTRIBUTION
           toFile="${dist.dir}/doc/scala-devel-docs/README.scala-swing"/>
   </target>
 
-  <target name="dist.man" depends="dist.doc">
+  <target name="dist.man" depends="dist.base">
     <mkdir dir="${dist.dir}/man"/>
     <copy toDir="${dist.dir}/man">
       <fileset dir="${build-docs.dir}/manual/man"/>
     </copy>
   </target>
 
-  <target name="dist.src" depends="dist.man">
+  <target name="dist.src" depends="dist.base">
     <mkdir dir="${dist.dir}/src"/>
     <jar destfile="${dist.dir}/src/scala-library-src.jar">
       <fileset dir="${src.dir}/library"/>
@@ -1597,17 +1595,15 @@ DISTRIBUTION
     <jar destfile="${dist.dir}/src/scala-partest-src.jar"  basedir="${src.dir}/partest"/>
   </target>
 
-  <target name="dist.latest" depends="dist.base">
+  <target name="dist.partial" depends="dist.base">
     <if><not><os family="windows"/></not><then>
       <symlink link="${dists.dir}/latest" resource="${dist.name}" overwrite="yes"/>
-    </then><else>
+    </then><else> <!-- XXX THIS PROBABLY DOES NOT WORK: copying must happen last during dist.done! is this guaranteed? -->
       <copydir dest="${dists.dir}/latest" src="${dist.dir}"/>
     </else></if>
   </target>
 
-  <target name="dist.partial" depends="dist.base, dist.latest"/>
-
-  <target name="dist.done" depends="dist.latest, dist.src"/>
+  <target name="dist.done" depends="dist.doc, dist.man, dist.src, dist.partial"/>
 
 
 <!-- ===========================================================================
