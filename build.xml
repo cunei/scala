@@ -44,11 +44,10 @@ PROPERTIES
   <!-- Defines the repository layout -->
   <property name="docs.dir" value="${basedir}/docs"/>
   <property name="lib.dir" value="${basedir}/lib"/>
-  <property name="lib-ant.dir" value="${lib.dir}/ant"/>
   <property name="src.dir" value="${basedir}/src"/>
   <property name="partest.dir" value="${basedir}/test"/>
-  <property name="partest.srcdir" value="files" />
 
+  <property name="lib-ant.dir" value="${lib.dir}/ant"/>
   <!-- For developers: any jars placed in this dir will be added to the classpath
        of all targets and copied into quick/pack/etc builds. -->
   <property name="lib-extra.dir" value="${lib.dir}/extra"/>
@@ -57,10 +56,6 @@ PROPERTIES
   <property file="${basedir}/build.properties"/>
   <!-- Generating version number -->
   <property file="${basedir}/build.number"/>
-
-  <!-- Additional command line arguments for scalac. They are added to all build targets -->
-  <property name="scalac.args" value=""/>
-  <property name="javac.args" value=""/>
 
   <!-- Sets location of pre-compiled libraries -->
   <property name="library.starr.jar" value="${lib.dir}/scala-library.jar"/>
@@ -131,10 +126,10 @@ INITIALISATION
 
   <target name="init" depends="boot">
     <!-- Set up Ant contrib tasks so we can use <if><then><else> instead of the clunky `unless` attribute -->
-    <taskdef resource="net/sf/antcontrib/antlib.xml" classpath="${lib.dir}/ant/ant-contrib.jar"/>
+    <taskdef resource="net/sf/antcontrib/antlib.xml" classpath="${lib-ant.dir}/ant-contrib.jar"/>
 
   <!-- Add our maven ant tasks -->
-    <path id="maven-ant-tasks.classpath" path="${lib.dir}/ant/maven-ant-tasks-2.1.1.jar" />
+    <path id="maven-ant-tasks.classpath" path="${lib-ant.dir}/maven-ant-tasks-2.1.1.jar" />
     <typedef resource="org/apache/maven/artifact/ant/antlib.xml" uri="urn:maven-artifact-ant" classpathref="maven-ant-tasks.classpath" />
 
     <artifact:dependencies pathId="extra.tasks.classpath" filesetId="extra.tasks.fileset">
@@ -247,13 +242,17 @@ INITIALISATION
     <property name="sbt.interface.src.url" value="http://typesafe.artifactoryonline.com/typesafe/ivy-releases/org.scala-sbt/compiler-interface/${sbt.latest.version}/jars/compiler-interface-src.jar"/>
 
 
+    <!-- Additional command line arguments for scalac. They are added to all build targets -->
+    <property name="scalac.args" value=""/>
+    <property name="javac.args" value=""/>
+
     <property name="scalac.args.always" value="" />
-  <!-- scalac.args.optimise is selectively overridden in certain antcall tasks. -->
-    <property name="scalac.args.optimise" value=""/>
+    <property name="scalac.args.optimise" value=""/> <!-- scalac.args.optimise is selectively overridden in certain antcall tasks. -->
     <property name="scalac.args.all" value="${scalac.args.always} ${scalac.args} ${scalac.args.optimise}"/>
     <property name="scalac.args.locker" value="${scalac.args.all}"/>
     <property name="scalac.args.quick" value="${scalac.args.all}"/>
     <property name="scalac.args.strap" value="${scalac.args.quick}"/>
+
     <!-- This is the start time for the distribution -->
     <tstamp prefix="time">
       <format property="human" pattern="d MMMM yyyy, HH:mm:ss" locale="en,US"/>
@@ -508,6 +507,29 @@ INITIALISATION
   </target>
 
 <!-- ===========================================================================
+  CLEANLINESS
+=============================================================================-->
+  <macrodef name="clean">
+    <attribute name="build"/>
+    <sequential>
+      <delete dir="${build-@{name}.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
+    </sequential>
+  </macrodef>
+
+  <target name="libs.clean">                        <clean build="libs"/> <clean build="asm"/>                            </target>
+  <target name="quick.clean"  depends="libs.clean">   <clean build="quick"/> <clean build="pack"/> <clean build="strap"/> </target>
+  <target name="palo.clean"   depends="quick.clean">    <clean build="palo"/>                                             </target>
+  <target name="locker.clean" depends="palo.clean">       <clean build="locker"/>                                         </target>
+
+  <target name="docs.clean"> <clean build="docs"/> <delete dir="${build.dir}/manmaker" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
+  <target name="dist.clean"> <delete dir="${dists.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
+
+  <target name="all.clean" depends="locker.clean, docs.clean, dist.clean"> <clean build="sbt"/> <clean build="osgi"/> </target>
+
+  <!-- Used by the scala-installer script -->
+  <target name="allallclean" depends="all.clean"/>
+
+<!-- ===========================================================================
 LOCAL DEPENDENCY (Adapted ASM)
 ============================================================================ -->
 
@@ -527,10 +549,6 @@ LOCAL DEPENDENCY (Adapted ASM)
       <stopwatch name="asm.lib.timer" action="total"/>
       <touch file="${build-asm.dir}/asm.complete" verbose="no"/>
     </then></if>
-  </target>
-
-  <target name="asm.clean" depends="init">
-    <delete dir="${build-asm.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
   </target>
 
 <!-- ===========================================================================
@@ -557,11 +575,6 @@ LOCAL DEPENDENCY (FORKJOIN)
       <stopwatch name="forkjoin.lib.timer" action="total"/>
       <touch file="${build-libs.dir}/forkjoin.complete" verbose="no"/>
     </then></if>
-  </target>
-
-  <target name="forkjoin.clean" depends="init">
-    <delete dir="${build-libs.dir}/classes/forkjoin" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-    <delete file="${build-libs.dir}/forkjoin.complete" quiet="yes" failonerror="no"/>
   </target>
 
   <!-- ===========================================================================
@@ -793,7 +806,6 @@ LOCAL REFERENCE BUILD (LOCKER)
   <target name="locker.comp"    depends="locker.reflect" unless="locker.locked"> <staged-build with="starr" stage="locker" project="compiler"/></target>
 
   <target name="locker.done"    depends="locker.comp"> <touch file="${build-locker.dir}/locker.locked" verbose="no"/></target>
-  <target name="locker.clean"   depends="palo.clean">  <delete dir="${build-locker.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
   <target name="locker.unlock"> <delete file="${build-locker.dir}/locker.locked"/>
                                 <delete file="${build-locker.dir}/*.complete"/></target>
 
@@ -920,9 +932,6 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.done" depends="quick.bin"/>
-  <target name="quick.clean" depends="libs.clean">
-    <delete dir="${build-quick.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
 
 <!-- ===========================================================================
 PACKED QUICK BUILD (PACK)
@@ -1039,9 +1048,6 @@ PACKED QUICK BUILD (PACK)
     <taskdef resource="scala/tools/partest/antlib.xml" classpathref="pack.compiler.path"/>
   </target>
 
-  <target name="pack.clean" depends="strap.clean">
-    <delete dir="${build-pack.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
 
 <!-- ===========================================================================
 OSGi Artifacts
@@ -1150,9 +1156,6 @@ OSGi Artifacts
     <stopwatch name="test.osgi.timer" action="total"/>
   </target>
 
-  <target name="osgi.clean">
-    <delete dir="${build-osgi.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
 
 <!-- ===========================================================================
 BOOTSTRAPPING BUILD (STRAP)
@@ -1176,9 +1179,6 @@ BOOTSTRAPPING BUILD (STRAP)
 
   <target name="strap.done"    depends="strap.comp"/>
 
-  <target name="strap.clean">
-    <delete dir="${build-strap.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
 
 
 <!-- ===========================================================================
@@ -1201,9 +1201,6 @@ PACKED LOCKER BUILD (PALO)
   </target>
 
   <target name="palo.bin" depends="palo.done"> <staged-bin stage="palo"/></target>
-  <target name="palo.clean" depends="quick.clean"> <delete dir="${build-palo.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
-
-  <target name="libs.clean" depends="pack.clean, asm.clean"> <delete dir="${build-libs.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
 
 <!-- ===========================================================================
 SBT Compiler Interface
@@ -1241,9 +1238,6 @@ SBT Compiler Interface
     </then></if>
   </target>
 
-  <target name="sbt.clean" depends="init">
-    <delete dir="${build-sbt.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
 
 <!-- ===========================================================================
 DOCUMENTATION
@@ -1391,14 +1385,11 @@ DOCUMENTATION
 
   <target name="docs.done" depends="docs.jline, docs.comp, docs.man, docs.lib, docs.scalap, docs.partest, docs.continuations-plugin"/>
 
-  <target name="docs.clean">
-    <delete dir="${build-docs.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-    <delete dir="${build.dir}/manmaker" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
 
 <!-- ===========================================================================
 BOOTRAPPING TEST AND TEST SUITE
 ============================================================================ -->
+  <property name="partest.srcdir" value="files" /> <!-- TODO: make targets for `pending` and other subdirs -->
 
   <!-- compare {quick,strap}/(lib|reflect|comp) -->
   <target name="test.stability" depends="quick.lib, quick.reflect, quick.comp, strap.lib, strap.reflect, strap.comp">
@@ -1634,9 +1625,6 @@ DISTRIBUTION
 
   <target name="dist.done" depends="dist.latest, dist.src"/>
 
-  <target name="dist.clean">
-    <delete dir="${dists.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
-  </target>
 
 <!-- ===========================================================================
 TEST AND DISTRIBUTION BUNDLE (ALL)
@@ -1644,7 +1632,6 @@ TEST AND DISTRIBUTION BUNDLE (ALL)
 
   <target name="all.done" depends="dist.done, test.done"/>
 
-  <target name="all.clean" depends="locker.clean, docs.clean, dist.clean, sbt.clean, osgi.clean"/>
 
 <!-- ===========================================================================
 STABLE REFERENCE (STARR)
@@ -1655,28 +1642,19 @@ STABLE REFERENCE (STARR)
   <target name="starr.start">
     <fail message="Library in build/pack not available">
       <condition><not><and>
-        <available file="${basedir}/build/pack/lib/scala-library.jar"/>
+        <available file="${build-pack.dir}/lib/scala-library.jar"/>
       </and></not></condition>
     </fail>
     <fail message="Compiler in build/quick not available">
       <condition><not><and>
-        <available file="${basedir}/build/quick/classes/compiler"/>
-        <available file="${basedir}/build/quick/compiler.complete"/>
+        <available file="${build-quick.dir}/classes/compiler"/>
+        <available file="${build-quick.dir}/compiler.complete"/>
       </and></not></condition>
     </fail>
   </target>
 
-  <target name="starr.clean" depends="starr.start">
-    <delete file="${basedir}/lib/scala-library.jar"/>
-    <delete file="${basedir}/lib/scala-reflect.jar"/>
-    <delete file="${basedir}/lib/scala-compiler.jar"/>
-    <delete file="${basedir}/lib/scala-library-src.jar"/>
-    <delete file="${basedir}/lib/scala-reflect-src.jar"/>
-    <delete file="${basedir}/lib/scala-compiler-src.jar"/>
-  </target>
-
   <target name="starr.jars" depends="starr.start">
-    <copy toDir="${basedir}/lib/" overwrite="yes">
+    <copy toDir="${lib.dir}" overwrite="yes">
       <fileset dir="${build-pack.dir}/lib">
         <include name="scala-library.jar"/>
         <include name="scala-reflect.jar"/>
@@ -1686,16 +1664,16 @@ STABLE REFERENCE (STARR)
   </target>
 
   <target name="starr.src" depends="starr.jars">
-    <jar destfile="${basedir}/lib/scala-library-src.jar">
-      <fileset dir="${basedir}/src/library"/>
-      <fileset dir="${basedir}/src/swing"/>
-      <fileset dir="${basedir}/src/actors"/>
-      <fileset dir="${basedir}/src/forkjoin"/>
+    <jar destfile="${lib.dir}/scala-library-src.jar">
+      <fileset dir="${src.dir}/library"/>
+      <fileset dir="${src.dir}/swing"/>
+      <fileset dir="${src.dir}/actors"/>
+      <fileset dir="${src.dir}/forkjoin"/>
     </jar>
-    <jar destfile="${basedir}/lib/scala-reflect-src.jar" basedir="${basedir}/src/reflect"/>
-    <jar destfile="${basedir}/lib/scala-compiler-src.jar">
-      <fileset dir="${basedir}/src/compiler"/>
-      <fileset dir="${basedir}/src/asm"/>
+    <jar destfile="${lib.dir}/scala-reflect-src.jar" basedir="${src.dir}/reflect"/>
+    <jar destfile="${lib.dir}/scala-compiler-src.jar">
+      <fileset dir="${src.dir}/compiler"/>
+      <fileset dir="${src.dir}/asm"/>
     </jar>
   </target>
 
@@ -1733,8 +1711,6 @@ FORWARDED TARGETS FOR PACKAGING
   <target name="distpack-maven-opt" description="Builds an optimised maven distribution.">
     <optimize name="distpack-maven"/></target>
 
-  <!-- Used by the scala-installer script -->
-  <target name="allallclean" depends="all.clean"/>
 
 <!-- ===========================================================================
 FORWARDED TARGETS FOR NIGHTLY BUILDS
@@ -1919,10 +1895,6 @@ MISCELLANEOUS
 
   <target name="graph.init">
     <taskdef name="vizant" classname="vizant.Vizant" classpath="${lib-ant.dir}/vizant.jar"/>
-  </target>
-
-  <target name="graph.clean" depends="graph.init">
-    <vizant antfile="${ant.file}" outfile="${ant.project.name}.dot" from="starr.clean"/>
   </target>
 
   <target name="graph.all" depends="graph.init">
