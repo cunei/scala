@@ -605,6 +605,8 @@ LOCAL DEPENDENCY (FORKJOIN)
     <attribute name="srcpath" default="NOT SET"/>        <!-- needed to compile the library -->
     <attribute name="args" default=""/>                  <!-- additional args -->
     <attribute name="destproject" default="@{project}"/> <!-- overrides the output directory; used when building multiple projects into the same directory-->
+    <attribute name="srcdir" default="@{project}"/>
+    <element name="args" implicit="true" optional="true"/>
 
     <sequential>
       <if><equals arg1="@{srcpath}" arg2="NOT SET"/><then>
@@ -612,10 +614,11 @@ LOCAL DEPENDENCY (FORKJOIN)
           destdir="${build-@{stage}.dir}/classes/@{destproject}"
           compilerpathref="@{with}.compiler.path"
           params="${scalac.args.@{stage}} @{args}"
-          srcdir="${src.dir}/@{project}"
+          srcdir="${src.dir}/@{srcdir}"
           jvmargs="${scalacfork.jvmargs}">
           <include name="**/*.scala"/>
           <compilationpath refid="@{stage}.@{project}.build.path"/>
+          <args/>
         </scalacfork></then>
       <else>
         <scalacfork
@@ -623,10 +626,11 @@ LOCAL DEPENDENCY (FORKJOIN)
           compilerpathref="@{with}.compiler.path"
           srcpath="@{srcpath}"
           params="${scalac.args.@{stage}} @{args}"
-          srcdir="${src.dir}/@{project}"
+          srcdir="${src.dir}/@{srcdir}"
           jvmargs="${scalacfork.jvmargs}">
           <include name="**/*.scala"/>
           <compilationpath refid="@{stage}.@{project}.build.path"/>
+          <args/>
         </scalacfork></else>
       </if>
     </sequential>
@@ -865,35 +869,25 @@ QUICK BUILD (QUICK)
       <check><srcfiles dir="${src.dir}/continuations"/></check>
       <do>
         <stopwatch name="quick.plugins.timer"/>
+
         <mkdir dir="${build-quick.dir}/classes/continuations-plugin"/>
-        <scalacfork
-          destdir="${build-quick.dir}/classes/continuations-plugin"
-          compilerpathref="quick.compiler.path"
-          params="${scalac.args.quick}"
-          srcdir="${src.dir}/continuations/plugin"
-          jvmargs="${scalacfork.jvmargs}">
-          <include name="**/*.scala"/>
-          <compilationpath refid="quick.plugins.build.path"/>
-        </scalacfork>
+        <staged-scalac with="locker" stage="quick" project="plugins" srcdir="continuations/plugin" destproject="continuations-plugin"/>
         <copy
            file="${src.dir}/continuations/plugin/scalac-plugin.xml"
            todir="${build-quick.dir}/classes/continuations-plugin"/>
+
         <!-- not very nice to create jar here but needed to load plugin -->
         <mkdir dir="${build-quick.dir}/misc/scala-devel/plugins"/>
         <jar destfile="${build-quick.dir}/misc/scala-devel/plugins/continuations.jar" basedir="${build-quick.dir}/classes/continuations-plugin"/>
+
         <!-- might split off library part into its own ant target -->
         <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
-        <scalacfork
-          destdir="${build-quick.dir}/classes/continuations-library"
-          compilerpathref="quick.compiler.path"
-          params="${scalac.args.quick} -Xplugin-require:continuations -P:continuations:enable"
-          srcdir="${src.dir}/continuations/library"
-          jvmargs="${scalacfork.jvmargs}">
-          <include name="**/*.scala"/>
-          <compilationpath refid="quick.library.build.path"/>
+        <staged-scalac with="locker" stage="quick" project="library"
+                       srcdir="continuations/library" destproject="continuations-library" args="-Xplugin-require:continuations -P:continuations:enable">
           <compilerarg value="-Xpluginsdir"/>
           <compilerarg file="${build-quick.dir}/misc/scala-devel/plugins"/>
-        </scalacfork>
+        </staged-scalac>
+
         <stopwatch name="quick.plugins.timer" action="total"/>
       </do>
     </staged-uptodate>
