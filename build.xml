@@ -1380,7 +1380,7 @@ DOCUMENTATION
 
   <target name="docs.lib" depends="docs.start">
     <staged-uptodate stage="docs" project="library">
-      <check><srcfiles dir="${src.dir}">>
+      <check><srcfiles dir="${src.dir}">
         <include name="library/**"/>
         <include name="swing/**"/>
         <include name="actors/**"/>
