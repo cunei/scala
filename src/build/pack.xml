@@ -210,7 +210,7 @@ MAIN DISTRIBUTION PACKAGING
       <include name="**/*"/>
     </jar>
     <jar destfile="${dists.dir}/maven/${version.number}/scala-partest/scala-partest-docs.jar"
-         basedir="${build-docs.dir}/scala-partest">
+         basedir="${build-docs.dir}/partest">
       <include name="**/*"/>
     </jar>
     <jar destfile="${dists.dir}/maven/${version.number}/plugins/continuations/continuations-docs.jar"
