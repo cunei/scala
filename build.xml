@@ -181,23 +181,23 @@ INITIALISATION
       <!--<dependency groupId="com.typesafe" artifactId="config" version="0.4.0"/>-->
     </artifact:dependencies>
 
-    <!-- Determines OSGi string + maven extension. -->
-    <if><isset property="version.bnum"/><then>
+    <!-- Compute defaults (i.e., if not specified on command-line) for OSGi/maven version suffixes. -->
+    <if><not><isset property="maven.version.suffix"/></not><then>
+      <if><isset property="build.release"/><then>
+        <property name="maven.version.suffix" value=""/>
+        <property name="osgi.version.suffix" value="-VFINAL"/></then>
+      <else>
+        <property name="maven.version.suffix" value="-SNAPSHOT"/>
+        <property name="osgi.version.suffix" value="-SNAPSHOT"/></else></if>
+    <else>
+      <property name="osgi.version.suffix" value="${maven.version.suffix}"/></else></if>
+
+    <if><not><equals arg1="${version.bnum}" arg2="0"/></not><then>
       <property name="version.suffix" value="-${version.bnum}"/>
     </then><else>
       <property name="version.suffix" value=""/>
     </else></if>
 
-    <if><isset property="maven.version.suffix"/><then>
-      <property name="osgi.version.suffix" value="${maven.version.suffix}"/>
-    </then><else>
-      <if><isset property="build.release"/><then>
-        <property name="osgi.version.suffix" value="-VFINAL"/>
-      </then><else>
-        <property name="maven.version.suffix" value="-SNAPSHOT"/>
-        <property name="osgi.version.suffix" value=""/>
-      </else></if>
-    </else></if>
 
     <exec osfamily="unix" executable="tools/get-scala-commit-sha" outputproperty="git.commit.sha" failifexecutionfails="false" />
     <exec osfamily="windows" executable="cmd.exe" outputproperty="git.commit.sha" failifexecutionfails="false">
