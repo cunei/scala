@@ -9,16 +9,12 @@ SuperSabbus for Scala core, builds the scala library and compiler. It can also p
 END-USER TARGETS
 ============================================================================ -->
   <target name="build"     depends="pack.done"      description="Builds the Scala compiler and library. Executables are in 'build/pack/bin'."/>
-  <target name="clean"     depends="quick.clean"    description="Removes binaries of compiler and library. Distributions are untouched."/>
   <target name="test"      depends="test.done"      description="Runs test suite and bootstrapping test on Scala compiler and library."/>
   <target name="docs"      depends="docs.done"      description="Builds documentation for the Scala library. Scaladoc is in 'build/scaladoc/library'."/>
   <target name="docscomp"  depends="docs.comp"      description="Builds documentation for the Scala compiler and library. Scaladoc is in 'build/scaladoc'."/>
-  <target name="docsclean" depends="docs.clean"     description="Removes generated documentation. Distributions are untouched."/>
-  <target name="dist"
-       depends="locker.clean, docs.clean, all.done" description="Cleans all and builds and tests a new distribution."/>
+  <target name="dist" depends="all.clean, all.done" description="Cleans all and builds and tests a new distribution."/>
   <target name="partialdist" depends="dist.partial" description="Makes a new distribution without documentation, so just for testing."/>
   <target name="fastdist"    depends="dist.done"    description="Makes a new distribution without testing it or removing partially build elements."/>
-  <target name="distclean"   depends="dist.clean"   description="Removes all distributions. Binaries and documentation are untouched."/>
 
   <target name="build-opt"       description="Optimized version of build.">       <optimized name="build"/></target>
   <target name="test-opt"        description="Optimized version of test.">        <optimized name="test"/></target>
@@ -45,6 +41,10 @@ END-USER TARGETS
 
   <target name="nightly.checkall">
     <antcall target="nightly-nopt"> <param name="partest.scalacopts" value="-Ycheck:all"/></antcall></target>
+
+  <target name="clean"     depends="locker.clean"   description="Removes binaries of compiler and library. Distributions are untouched."/>
+  <target name="docsclean" depends="docs.clean"     description="Removes generated documentation. Distributions are untouched."/>
+  <target name="distclean"   depends="dist.clean"   description="Removes all distributions. Binaries and documentation are untouched."/>
 
   <macrodef name="optimized" >
     <attribute name="name"/>
@@ -537,10 +537,10 @@ INITIALISATION
   <target name="docs.clean"> <clean build="docs"/> <delete dir="${build.dir}/manmaker" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
   <target name="dist.clean"> <delete dir="${dists.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/> </target>
 
-  <target name="all.clean" depends="locker.clean, docs.clean, dist.clean"> <clean build="sbt"/> <clean build="osgi"/> </target>
+  <target name="all.clean" depends="locker.clean, docs.clean"> <clean build="sbt"/> <clean build="osgi"/> </target>
 
   <!-- Used by the scala-installer script -->
-  <target name="allallclean" depends="all.clean"/>
+  <target name="allallclean" depends="all.clean, dist.clean"/>
 
   <macrodef name="clean">
     <attribute name="build"/>
