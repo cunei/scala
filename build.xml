@@ -653,9 +653,11 @@ LOCAL DEPENDENCY (FORKJOIN)
     <attribute name="with"/>           <!-- will use path `@{with}.compiler.path` to locate scalac -->
     <attribute name="stage"/>          <!-- current stage (locker, quick, strap) -->
     <attribute name="project"/>        <!-- project: library/reflect/compiler/actors -->
-    <attribute name="srcpath" default="NOT SET"/>        <!-- needed to compile the library -->
-    <attribute name="args" default=""/>                  <!-- additional args -->
-    <attribute name="includes" default="comp.includes"/>
+    <attribute name="srcpath"       default="NOT SET"/>        <!-- needed to compile the library -->
+    <attribute name="args"          default=""/>                  <!-- additional args -->
+    <attribute name="includes"      default="comp.includes"/>
+    <attribute name="version"       default=""/> <!-- non-empty for partest and scaladoc: use @{version}.version.number in property file-->
+
     <element name="pre" optional="true"/>
     <element name="post" optional="true"/>
 
@@ -668,12 +670,19 @@ LOCAL DEPENDENCY (FORKJOIN)
           <pre/>
           <staged-scalac with="@{with}" stage="@{stage}" project="@{project}" srcpath="@{srcpath}" args="@{args}"/>
           <post/>
-          <propertyfile file="${build-@{stage}.dir}/classes/@{project}/@{project}.properties">
-            <entry key="version.number" value="${version.number}"/>
-            <entry key="maven.version.number" value="${maven.version.number}"/>
-            <entry key="osgi.version.number" value="${osgi.version.number}"/>
-            <entry key="copyright.string" value="${copyright.string}"/>
-          </propertyfile>
+          <if><equals arg1="@{version}" arg2=""/><then>
+            <propertyfile file = "${build-@{stage}.dir}/classes/@{project}/@{project}.properties">
+              <entry key       = "version.number" value="${version.number}"/>
+              <entry key       = "maven.version.number" value="${maven.version.number}"/>
+              <entry key       = "osgi.version.number" value="${osgi.version.number}"/>
+              <entry key       = "copyright.string" value="${copyright.string}"/>
+            </propertyfile>
+          </then><else>
+            <propertyfile file = "${build-@{stage}.dir}/classes/@{project}/@{project}.properties">
+              <entry key       = "version.number" value="${@{version}.version.number}"/>
+              <entry key       = "copyright.string" value="${copyright.string}"/>
+            </propertyfile>
+          </else></if>
           <copy todir="${build-@{stage}.dir}/classes/@{project}">
             <fileset dir="${src.dir}/@{project}">
               <patternset refid="@{includes}"/>
@@ -857,7 +866,6 @@ QUICK BUILD (QUICK)
       <do>
         <stopwatch name="quick.plugins.timer"/>
         <mkdir dir="${build-quick.dir}/classes/continuations-plugin"/>
-        <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
         <scalacfork
           destdir="${build-quick.dir}/classes/continuations-plugin"
           compilerpathref="quick.compiler.path"
@@ -874,6 +882,7 @@ QUICK BUILD (QUICK)
         <mkdir dir="${build-quick.dir}/misc/scala-devel/plugins"/>
         <jar destfile="${build-quick.dir}/misc/scala-devel/plugins/continuations.jar" basedir="${build-quick.dir}/classes/continuations-plugin"/>
         <!-- might split off library part into its own ant target -->
+        <mkdir dir="${build-quick.dir}/classes/continuations-library"/>
         <scalacfork
           destdir="${build-quick.dir}/classes/continuations-library"
           compilerpathref="quick.compiler.path"
@@ -891,40 +900,13 @@ QUICK BUILD (QUICK)
   </target>
 
   <target name="quick.partest" depends="quick.scalap, quick.repl, asm.done">
-    <staged-uptodate stage="quick" project="partest">
-      <check><srcfiles dir="${src.dir}/partest"/></check>
-      <do>
-        <stopwatch name="quick.partest.timer"/>
-          <mkdir dir="${build-quick.dir}/classes/partest"/>
-          <staged-javac                    stage="quick" project="partest"/>
-          <staged-scalac with="locker" stage="quick" project="partest"/>
-          <propertyfile file="${build-quick.dir}/classes/partest/partest.properties">
-            <entry key="version.number" value="${partest.version.number}"/>
-            <entry key="copyright.string" value="${copyright.string}"/>
-          </propertyfile>
-          <copy todir="${build-quick.dir}/classes/partest">
-            <fileset dir="${src.dir}/partest"> <patternset refid="partest.includes"/> </fileset>
-          </copy>
-        <stopwatch name="quick.partest.timer" action="total"/>
-      </do>
-    </staged-uptodate>
+    <staged-build with="locker" stage="quick" project="partest" version="partest">
+      <pre><staged-javac stage="quick" project="partest"/></pre>
+    </staged-build>
   </target>
 
   <target name="quick.scaladoc" depends="quick.comp, quick.partest">
-    <staged-uptodate stage="quick" project="scaladoc">
-      <check><srcfiles dir="${src.dir}/scaladoc"/></check>
-      <do>
-        <mkdir dir="${build-quick.dir}/classes/scaladoc"/>
-        <staged-scalac with="locker" stage="quick" project="scaladoc"/>
-        <propertyfile file="${build-quick.dir}/classes/scaladoc/scaladoc.properties">
-          <entry key="version.number" value="${scaladoc.version.number}"/>
-          <entry key="copyright.string" value="${copyright.string}"/>
-        </propertyfile>
-        <copy todir="${build-quick.dir}/classes/scaladoc">
-          <fileset dir="${src.dir}/scaladoc">  <patternset refid="comp.includes"/> </fileset>
-        </copy>
-      </do>
-    </staged-uptodate>
+    <staged-build with="locker" stage="quick" project="scaladoc" version="scaladoc"/>
   </target>
 
   <target name="quick.bin" depends="quick.lib, quick.reflect, quick.comp, quick.repl, quick.scalacheck, quick.scalap, quick.interactive, quick.swing, quick.plugins, quick.partest, quick.scaladoc">
