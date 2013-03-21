@@ -583,6 +583,7 @@ INITIALISATION
       <path refid="forkjoin.classpath"/>
       <path refid="aux.libs"/>
     </path>
+    <path id="strap.actors.build.path"><path refid="strap.library.build.path"/></path>
 
     <path id="strap.reflect.build.path">
       <path refid="strap.library.build.path"/>
