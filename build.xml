@@ -1443,7 +1443,7 @@ DOCUMENTATION
   </target>
 
   <target name="docs.scalap" depends="docs.start">
-    <staged-docs project="jline" title="Scalap">
+    <staged-docs project="scalap" title="Scalap">
       <include name="**/*.scala"/>
     </staged-docs>
   </target>
@@ -1471,29 +1471,29 @@ DOCUMENTATION
           srcdir="${src.dir}/manual"
           includes="**/*.scala"
           addparams="${scalac.args.all}"/>
+        <mkdir dir="${build-docs.dir}/manual/man/man1"/>
+        <mkdir dir="${build-docs.dir}/manual/html"/>
+        <mkdir dir="${build-docs.dir}/manual/genman/man1"/>
+        <taskdef name="genman"
+                 classname="scala.tools.docutil.ManMaker"
+                 classpathref="manual.classpath"/>
+        <genman command="fsc, scala, scalac, scaladoc, scalap"
+                htmlout="${build-docs.dir}/manual/html"
+                manout="${build-docs.dir}/manual/genman"/>
+        <!-- On Windows source and target files can't be the same ! -->
+        <fixcrlf
+          srcdir="${build-docs.dir}/manual/genman"
+          destdir="${build-docs.dir}/manual/man"
+          eol="unix" includes="**/*.1"/>
+        <copy todir="${build-docs.dir}/manual/html">
+          <fileset dir="${src.dir}/manual/scala/tools/docutil/resources">
+            <include name="**/*.html"/>
+            <include name="**/*.css"/>
+            <include name="**/*.gif"/>
+            <include name="**/*.png"/>
+          </fileset>
+        </copy>
       </do>
-      <mkdir dir="${build-docs.dir}/manual/man/man1"/>
-      <mkdir dir="${build-docs.dir}/manual/html"/>
-      <mkdir dir="${build-docs.dir}/manual/genman/man1"/>
-      <taskdef name="genman"
-               classname="scala.tools.docutil.ManMaker"
-               classpathref="manual.classpath"/>
-      <genman command="fsc, scala, scalac, scaladoc, scalap"
-              htmlout="${build-docs.dir}/manual/html"
-              manout="${build-docs.dir}/manual/genman"/>
-      <!-- On Windows source and target files can't be the same ! -->
-      <fixcrlf
-        srcdir="${build-docs.dir}/manual/genman"
-        destdir="${build-docs.dir}/manual/man"
-        eol="unix" includes="**/*.1"/>
-      <copy todir="${build-docs.dir}/manual/html">
-        <fileset dir="${src.dir}/manual/scala/tools/docutil/resources">
-          <include name="**/*.html"/>
-          <include name="**/*.css"/>
-          <include name="**/*.gif"/>
-          <include name="**/*.png"/>
-        </fileset>
-      </copy>
     </staged-uptodate>
   </target>
 
