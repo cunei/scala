@@ -181,22 +181,45 @@ INITIALISATION
       <!--<dependency groupId="com.typesafe" artifactId="config" version="0.4.0"/>-->
     </artifact:dependencies>
 
-    <!-- Compute defaults (i.e., if not specified on command-line) for OSGi/maven version suffixes. -->
-    <if><not><isset property="maven.version.suffix"/></not><then>
-      <if><isset property="build.release"/><then>
-        <property name="maven.version.suffix" value=""/>
-        <property name="osgi.version.suffix" value="-VFINAL"/></then>
-      <else>
-        <property name="maven.version.suffix" value="-SNAPSHOT"/>
-        <property name="osgi.version.suffix" value="-SNAPSHOT"/></else></if>
-    <else>
-      <property name="osgi.version.suffix" value="${maven.version.suffix}"/></else></if>
 
+    <!-- NOTE: ant properties are write-once: second writes are silently discarded; the logic below relies on this -->
+
+    <!-- Compute defaults (i.e., if not specified on command-line) for OSGi/maven version suffixes.
+      Try to establish the invariant (verified below):
+      `version.suffix == maven.version.suffix == osgi.version.suffix`,
+      except for:
+        - snapshot builds, where:
+          - `maven.suffix == "-SNAPSHOT"`
+          - `version.suffix == osgi.version.suffix == ""`
+        - final builds, where:
+          - `osgi.suffix == "-VFINAL"`
+          - `version.suffix == maven.version.suffix == ""`
+    -->
     <if><not><equals arg1="${version.bnum}" arg2="0"/></not><then>
       <property name="version.suffix" value="-${version.bnum}"/>
-    </then><else>
-      <property name="version.suffix" value=""/>
-    </else></if>
+    </then></if>
+
+    <if><or><not><isset property="version.suffix"/></not><equals arg1="${version.suffix}" arg2=""/></or><then>
+      <if><isset property="build.release"/><then>
+        <property name="maven.version.suffix" value=""/>
+        <property name="version.suffix" value="${maven.version.suffix}"/>
+        <if><equals arg1="${maven.version.suffix}" arg2=""/><then>
+          <property name="osgi.version.suffix" value="-VFINAL"/></then>
+        <else>
+          <property name="osgi.version.suffix" value="${maven.version.suffix}"/></else></if></then></if></then>
+    <else> <!-- version.suffix set and not empty -->
+      <property name="maven.version.suffix" value="${version.suffix}"/>
+      <property name="osgi.version.suffix"  value="${version.suffix}"/></else></if>
+
+    <!-- not building a release and no version.suffix specified -->
+    <property name="maven.version.suffix" value="-SNAPSHOT"/>
+
+    <if><equals arg1="${maven.version.suffix}" arg2="-SNAPSHOT"/><then>
+      <property name="osgi.version.suffix" value=""/>
+      <property name="version.suffix" value=""/></then>
+    <else>
+      <property name="osgi.version.suffix" value="${maven.version.suffix}"/>
+      <property name="version.suffix" value="${maven.version.suffix}"/></else></if>
 
 
     <exec osfamily="unix" executable="tools/get-scala-commit-sha" outputproperty="git.commit.sha" failifexecutionfails="false" />
@@ -218,9 +241,9 @@ INITIALISATION
 
     <!-- We use the git describe to determine the OSGi modifier for our build. -->
     <property name="maven.version.number"
-      value="${version.major}.${version.minor}.${version.patch}${version.suffix}${maven.version.suffix}"/>
+      value="${version.major}.${version.minor}.${version.patch}${maven.version.suffix}"/>
     <property name="osgi.version.number"
-      value="${version.major}.${version.minor}.${version.patch}.v${git.commit.date}${version.suffix}${osgi.version.suffix}-${git.commit.sha}"/>
+      value="${version.major}.${version.minor}.${version.patch}.v${git.commit.date}${osgi.version.suffix}-${git.commit.sha}"/>
 
     <if><isset property="build.release"/><then>
       <property name="version.number" value="${maven.version.number}"/>
@@ -310,7 +333,30 @@ INITIALISATION
     <echo message="     OSGi version: ${osgi.version.number}" />
     <echo message="canonical version: ${version.number}" />
 
-  <!-- Define tasks that can be run with Starr -->
+    <!-- validate version suffixes -->
+    <if><equals arg1="${maven.version.suffix}" arg2="-SNAPSHOT"/><then>
+      <condition property="version.suffixes.consistent"><and>
+        <equals arg1="${osgi.version.suffix}" arg2=""/>
+        <equals arg1="${version.suffix}" arg2=""/>
+      </and></condition></then>
+    <else>
+      <if><equals arg1="${osgi.version.suffix}" arg2="-VFINAL"/><then>
+        <condition property="version.suffixes.consistent"><and>
+          <equals arg1="${maven.version.suffix}" arg2=""/>
+          <equals arg1="${version.suffix}" arg2=""/>
+        </and></condition></then>
+      <else>
+        <condition property="version.suffixes.consistent"><and>
+          <equals arg1="${osgi.version.suffix}" arg2="${maven.version.suffix}"/>
+          <equals arg1="${version.suffix}" arg2="${maven.version.suffix}"/>
+        </and></condition></else></if></else></if>
+
+    <!-- <echo message="    maven suffix: ${maven.version.suffix}"/>
+    <echo message="     OSGi suffix: ${osgi.version.suffix}" />
+    <echo message="canonical suffix: ${version.suffix}" /> -->
+    <fail unless="version.suffixes.consistent" message="Version suffixes inconsistent!"/>
+
+    <!-- Define tasks that can be run with Starr -->
     <path id="starr.compiler.path">
       <pathelement location="${library.starr.jar}"/>
       <pathelement location="${reflect.starr.jar}"/>
