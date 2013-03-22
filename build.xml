@@ -6,7 +6,7 @@ SuperSabbus for Scala core, builds the scala library and compiler. It can also p
   </description>
 
 <!-- ===========================================================================
-END-USER TARGETS
+                                  END-USER TARGETS
 ============================================================================ -->
   <target name="build"     depends="pack.done"      description="Builds the Scala compiler and library. Executables are in 'build/pack/bin'."/>
   <target name="test"      depends="test.done"      description="Runs test suite and bootstrapping test on Scala compiler and library."/>
@@ -54,7 +54,7 @@ END-USER TARGETS
   </macrodef>
 
 <!-- ===========================================================================
-PROPERTIES
+                                  PROPERTIES
 ============================================================================ -->
 
   <property environment="env"/>
@@ -118,7 +118,7 @@ PROPERTIES
   <property name="scalacfork.jvmargs" value="${env.ANT_OPTS} ${jvm.opts}"/>
 
 <!-- ===========================================================================
-INITIALISATION
+                                  INITIALIZATION
 ============================================================================ -->
   <target name="desired.jars.uptodate">
     <patternset id="desired.jars">
@@ -537,6 +537,7 @@ INITIALISATION
       <pathelement location="${build.dir}/manmaker/classes"/>
     </path>
 
+    <!-- TODO: consolidate *.includes -->
     <patternset id="partest.includes">
       <include name="**/*.xml"/>
     </patternset>
@@ -573,7 +574,7 @@ INITIALISATION
   </target>
 
 <!-- ===========================================================================
-  CLEANLINESS
+                                  CLEANLINESS
 =============================================================================-->
   <target name="libs.clean">                        <clean build="libs"/> <clean build="asm"/>                            </target>
   <target name="quick.clean"  depends="libs.clean">   <clean build="quick"/> <clean build="pack"/> <clean build="strap"/> </target>
@@ -596,7 +597,7 @@ INITIALISATION
   </macrodef>
 
 <!-- ===========================================================================
-LOCAL DEPENDENCY (Adapted ASM)
+                                  LOCAL DEPENDENCY (Adapted ASM)
 ============================================================================ -->
   <target name="asm.done" depends="init">
     <available file="${build-asm.dir}/asm.complete" property="asm.available"/>
@@ -617,7 +618,7 @@ LOCAL DEPENDENCY (Adapted ASM)
   </target>
 
 <!-- ===========================================================================
-LOCAL DEPENDENCY (FORKJOIN)
+                                  LOCAL DEPENDENCY (FORKJOIN)
 ============================================================================ -->
   <target name="forkjoin.done" depends="init">
     <uptodate property="forkjoin.available" targetfile="${build-libs.dir}/forkjoin.complete">
@@ -643,7 +644,7 @@ LOCAL DEPENDENCY (FORKJOIN)
   </target>
 
 <!-- ===========================================================================
- STAGED COMPILATION MACROS
+                                  STAGED COMPILATION MACROS
 ============================================================================ -->
   <macrodef name="staged-javac" >
     <attribute name="stage" default="NOT SET"/>    <!-- current stage (locker, quick, strap) -->
@@ -870,7 +871,7 @@ LOCAL DEPENDENCY (FORKJOIN)
   </macrodef>
 
 <!-- ===========================================================================
-LOCAL REFERENCE BUILD (LOCKER)
+                                  LOCAL REFERENCE BUILD (LOCKER)
 ============================================================================ -->
   <target name="locker.start" depends="asm.done, forkjoin.done">
     <condition property="locker.locked"><available file="${build-locker.dir}/locker.locked"/></condition></target>
@@ -888,7 +889,7 @@ LOCAL REFERENCE BUILD (LOCKER)
                                 <delete file="${build-locker.dir}/*.complete"/></target>
 
 <!-- ===========================================================================
-QUICK BUILD (QUICK)
+                                  QUICK BUILD (QUICK)
 ============================================================================ -->
   <target name="quick.start" depends="locker.done"/>
 
@@ -974,10 +975,10 @@ QUICK BUILD (QUICK)
   <target name="quick.done" depends="quick.lib, quick.reflect, quick.comp, quick.repl, quick.scalacheck, quick.scalap, quick.interactive, quick.swing, quick.plugins, quick.partest, quick.scaladoc, quick.bin"/>
   <target name="quick-opt" description="Optimized version of quick.done."> <optimized name="quick.done"/></target>
 
-<!-- ===========================================================================
-PACKED QUICK BUILD (PACK)
-============================================================================ -->
 
+<!-- ===========================================================================
+                                  PACKED QUICK BUILD (PACK)
+============================================================================ -->
   <target name="pack.lib" depends="quick.lib, quick.plugins, forkjoin.done">
     <staged-pack project="library">
       <!-- First copy maven dependencies -->
@@ -1089,7 +1090,7 @@ PACKED QUICK BUILD (PACK)
 
 
 <!-- ===========================================================================
-BOOTSTRAPPING BUILD (STRAP)
+                                  BOOTSTRAPPING BUILD (STRAP)
 ============================================================================ -->
   <target name="strap.lib" depends="quick.done">
     <staged-build with="quick" stage="strap" project="library" srcpath="${src.dir}/library" includes="lib.rootdoc.includes">
@@ -1110,7 +1111,7 @@ BOOTSTRAPPING BUILD (STRAP)
 
 
 <!-- ===========================================================================
-PACKED LOCKER BUILD (PALO)
+                                  PACKED LOCKER BUILD (PALO)
 ============================================================================ -->
   <target name="palo.done" depends="locker.done">
     <mkdir dir="${build-palo.dir}/lib"/>
@@ -1131,7 +1132,7 @@ PACKED LOCKER BUILD (PALO)
 
 
 <!-- ===========================================================================
-OSGi Artifacts
+                                  OSGi Artifacts
 ============================================================================ -->
   <target name="osgi.init" depends="pack.done">
     <mkdir dir="${build-osgi.dir}"/>
@@ -1199,7 +1200,7 @@ OSGi Artifacts
 
 
 <!-- ===========================================================================
- TEST SUITE
+                                  TEST SUITE
 ============================================================================ -->
   <!-- bootstrapping stability: compare {quick,strap}/(lib|reflect|comp) -->
   <target name="test.stability" depends="quick.lib, quick.reflect, quick.comp, strap.lib, strap.reflect, strap.comp">
@@ -1251,7 +1252,7 @@ OSGi Artifacts
 
 
 <!-- ===========================================================================
-SBT Compiler Interface
+                                  SBT Compiler Interface
 ============================================================================ -->
   <target name="test.sbt" depends="quick.done">
     <if><not><and>
@@ -1357,7 +1358,7 @@ SBT Compiler Interface
 
 
 <!-- ===========================================================================
-Binary compatibility testing
+                                  BINARY COMPATIBILITY TESTING
 ============================================================================ -->
   <target name="bc.init" depends="init">
     <property name="bc-build.dir" value="${build.dir}/bc"/>
@@ -1401,7 +1402,7 @@ Binary compatibility testing
   </target>
 
 <!-- ===========================================================================
-DOCUMENTATION
+                                  DOCUMENTATION
 ============================================================================ -->
   <target name="docs.start" depends="pack.done">
     <!-- Set the github commit scaladoc sources point to -->
@@ -1547,7 +1548,7 @@ DOCUMENTATION
 
 
 <!-- ===========================================================================
-DISTRIBUTION
+                                  DISTRIBUTION
 ============================================================================ -->
   <target name="dist.base" depends="pack.done, osgi.done">
     <property name="dist.name" value="scala-${version.number}"/>
@@ -1652,7 +1653,7 @@ DISTRIBUTION
 
 
 <!-- ===========================================================================
-STABLE REFERENCE (STARR)
+                                  STABLE REFERENCE (STARR)
 ============================================================================ -->
 <!-- Does not use any properties other than ${basedir}, so that it can
      run without 'init' (when using 'replacestarrwin') -->
@@ -1770,7 +1771,7 @@ STABLE REFERENCE (STARR)
 
 
 <!-- ===========================================================================
-   TODO: FIX OR REMOVE
+                                  TODO: FIX OR REMOVE
 ============================================================================ -->
 
   <!-- not called by test target -->
@@ -1868,7 +1869,7 @@ STABLE REFERENCE (STARR)
   </target>
 
 <!-- ===========================================================================
-MISCELLANEOUS
+                                  VISUALIZATION
 ============================================================================ -->
 
   <target name="graph.init">
