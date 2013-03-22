@@ -5,6 +5,21 @@
 SuperSabbus for Scala core, builds the scala library and compiler. It can also package it as a simple distribution, tests it for stable bootstrapping and against the Scala test suite.
   </description>
 
+<!-- USAGE FROM JENKINS SCRIPTS IS (CURRENTLY) AS FOLLOWS:
+ant $antArgs $scalacArgs $targets
+
+antArgs tend to be:
+ -Darchives.skipxz=true
+ -Dscalac.args.optimise=-optimise
+
+scalacArgs examples:
+  "-Dscalac.args=\"-Yrangepos\" -Dpartest.scalac_opts=\"-Yrangepos\""
+
+targets exercised:
+  build-opt nightly test.suite test.continuations.suite test.scaladoc locker.done
+-->
+
+
 <!-- ===========================================================================
                                   END-USER TARGETS
 ============================================================================ -->
@@ -40,7 +55,7 @@ SuperSabbus for Scala core, builds the scala library and compiler. It can also p
   <target name="nightly"><optimized name="nightly-nopt"/></target>
 
   <target name="nightly.checkall">
-    <antcall target="nightly-nopt"> <param name="partest.scalacopts" value="-Ycheck:all"/></antcall></target>
+    <antcall target="nightly-nopt"> <param name="partest.scalac_opts" value="-Ycheck:all"/></antcall></target>
 
   <target name="clean"     depends="locker.clean"   description="Removes binaries of compiler and library. Distributions are untouched."/>
   <target name="docsclean" depends="docs.clean"     description="Removes generated documentation. Distributions are untouched."/>
