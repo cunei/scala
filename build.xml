@@ -591,7 +591,7 @@ INITIALISATION
   <macrodef name="clean">
     <attribute name="build"/>
     <sequential>
-      <delete dir="${build-@{name}.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
+      <delete dir="${build-@{build}.dir}" includeemptydirs="yes" quiet="yes" failonerror="no"/>
     </sequential>
   </macrodef>
 
