@@ -371,7 +371,13 @@ targets exercised:
     <echo message="canonical suffix: ${version.suffix}" /> -->
     <fail unless="version.suffixes.consistent" message="Version suffixes inconsistent!"/>
 
-    <!-- Define tasks that can be run with Starr -->
+    <path id="forkjoin.classpath" path="${build-libs.dir}/classes/forkjoin"/>
+    <path id="asm.classpath"      path="${build-asm.dir}/classes/"/>
+
+    <!-- Compilers to use for the various stages.
+
+      There must be a variable of the shape @{stage}.compiler.path  for all @{stage} in starr, locker, quick, strap.
+    -->
     <path id="starr.compiler.path">
       <pathelement location="${library.starr.jar}"/>
       <pathelement location="${reflect.starr.jar}"/>
@@ -379,11 +385,17 @@ targets exercised:
       <pathelement location="${lib.dir}/forkjoin.jar"/>
       <path refid="aux.libs"/>
     </path>
+    <path id="locker.compiler.path"><path refid="locker.compiler.build.path"/></path>
+    <path id="quick.compiler.path"> <path refid="quick.compiler.build.path"/></path>
 
-    <path id="forkjoin.classpath" path="${build-libs.dir}/classes/forkjoin"/>
-    <path id="asm.classpath"      path="${build-asm.dir}/classes/"/>
 
-    <!-- What to have on the compilation path when compiling during certain phases -->
+    <!-- What to have on the compilation path when compiling during certain phases.
+
+      There must be a variable of the shape @{stage}.@{project}.build.path
+      for all @{stage} in locker, quick, strap
+      and all @{project} in library, reflect, compiler
+        when stage is quick, @{project} also includes: actors, repl, swing, plugins, scalacheck, interactive, scaladoc, partest, scalap
+    -->
 
     <!-- LOCKER -->
     <path id="locker.library.build.path">
@@ -401,15 +413,6 @@ targets exercised:
       <path refid="locker.reflect.build.path"/>
       <pathelement location="${build-locker.dir}/classes/compiler"/>
       <path refid="asm.classpath"/>
-    </path>
-
-    <path id="locker.compiler.path"><path refid="locker.compiler.build.path"/></path>
-
-    <path id="palo.bin.tool.path">
-      <pathelement location="${build-palo.dir}/lib/scala-library.jar"/>
-      <pathelement location="${build-palo.dir}/lib/scala-reflect.jar"/>
-      <pathelement location="${build-palo.dir}/lib/scala-compiler.jar"/>
-      <pathelement location="${build-palo.dir}/lib/jline.jar"/>
     </path>
 
     <!-- QUICK -->
@@ -432,10 +435,8 @@ targets exercised:
       <path refid="asm.classpath"/>
     </path>
 
-    <path id="quick.compiler.path"><path refid="quick.compiler.build.path"/></path>
-
     <path id="quick.repl.build.path">
-      <path refid="quick.compiler.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/repl"/>
       <pathelement location="${jline.jar}"/>
     </path>
@@ -443,7 +444,7 @@ targets exercised:
     <path id="quick.swing.build.path"><path refid="quick.library.build.path"/></path>
 
     <path id="quick.plugins.build.path">
-      <path refid="quick.compiler.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/continuations-plugin"/>
     </path>
 
@@ -453,7 +454,7 @@ targets exercised:
     </path>
 
     <path id="quick.scalap.build.path">
-      <path refid="quick.compiler.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/scalap"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
     </path>
@@ -465,26 +466,16 @@ targets exercised:
     </path>
 
     <path id="quick.scaladoc.build.path">
-      <path refid="quick.compiler.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
     </path>
 
     <path id="quick.interactive.build.path">
-      <path refid="quick.compiler.path"/>
+      <path refid="quick.compiler.build.path"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
       <pathelement location="${build-quick.dir}/classes/interactive"/>
     </path>
-
-    <path id="sbt.compile.build.path">
-      <path refid="quick.compiler.path"/>
-      <pathelement location="${build-quick.dir}/classes/repl"/>
-      <pathelement location="${build-quick.dir}/classes/scaladoc"/>
-      <pathelement location="${build-quick.dir}/classes/interactive"/>
-      <pathelement location="${sbt.interface.jar}"/>
-    </path>
-
-    <path id="test.positions.sub.build.path" path="${build-quick.dir}/classes/library"/>
 
     <path id="quick.bin.tool.path">
       <path refid="quick.repl.build.path"/>
@@ -511,11 +502,6 @@ targets exercised:
       <pathelement location="${build-pack.dir}/lib/jline.jar"/>
     </path>
 
-    <path id="partest.classpath">
-      <path refid="pack.compiler.path"/>
-      <fileset dir="${partest.dir}/files/lib" includes="*.jar" />
-      <pathelement location="${pack.dir}/lib/scala-swing.jar"/> <!-- TODO - segregate swing tests (there can't be many) -->
-    </path>
 
     <!-- STRAP -->
     <path id="strap.library.build.path">
@@ -537,6 +523,25 @@ targets exercised:
     </path>
 
     <!-- MISC -->
+    <path id="sbt.compile.build.path">
+      <path refid="quick.compiler.build.path"/>
+      <pathelement location="${build-quick.dir}/classes/repl"/>
+      <pathelement location="${build-quick.dir}/classes/scaladoc"/>
+      <pathelement location="${build-quick.dir}/classes/interactive"/>
+      <pathelement location="${sbt.interface.jar}"/>
+    </path>
+
+    <path id="manual.classpath">
+      <pathelement location="${build-pack.dir}/lib/scala-library.jar"/>
+      <pathelement location="${build.dir}/manmaker/classes"/>
+    </path>
+
+    <path id="partest.classpath">
+      <path refid="pack.compiler.path"/>
+      <fileset dir="${partest.dir}/files/lib" includes="*.jar" />
+      <pathelement location="${pack.dir}/lib/scala-swing.jar"/> <!-- TODO - segregate swing tests (there can't be many) -->
+    </path>
+
     <path id="test.osgi.compiler.build.path">
       <pathelement location="${test.osgi.classes}"/>
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-library.jar"/>
@@ -547,10 +552,14 @@ targets exercised:
       <path refid="forkjoin.classpath"/>
     </path>
 
-    <path id="manual.classpath">
-      <pathelement location="${build-pack.dir}/lib/scala-library.jar"/>
-      <pathelement location="${build.dir}/manmaker/classes"/>
+    <path id="palo.bin.tool.path">
+      <pathelement location="${build-palo.dir}/lib/scala-library.jar"/>
+      <pathelement location="${build-palo.dir}/lib/scala-reflect.jar"/>
+      <pathelement location="${build-palo.dir}/lib/scala-compiler.jar"/>
+      <pathelement location="${build-palo.dir}/lib/jline.jar"/>
     </path>
+
+    <path id="test.positions.sub.build.path" path="${build-quick.dir}/classes/library"/>
 
     <!-- TODO: consolidate *.includes -->
     <patternset id="partest.includes">
@@ -662,8 +671,8 @@ targets exercised:
                                   STAGED COMPILATION MACROS
 ============================================================================ -->
   <macrodef name="staged-javac" >
-    <attribute name="stage" default="NOT SET"/>    <!-- current stage (locker, quick, strap) -->
-    <attribute name="project" default="NOT SET"/>  <!-- project: library/reflect/compiler/actors -->
+    <attribute name="stage"/>    <!-- current stage (locker, quick, strap) -->
+    <attribute name="project"/>  <!-- project: library/reflect/compiler/actors -->
     <attribute name="destproject" default="@{project}"/> <!-- overrides the output directory; used when building multiple projects into the same directory-->
     <attribute name="args" default=""/>
 
