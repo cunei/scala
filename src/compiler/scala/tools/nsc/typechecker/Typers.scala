@@ -4566,7 +4566,7 @@ trait Typers extends Modes with Adaptations with Tags {
             }
             if (retry) {
               val Select(qual, name) = fun
-              tryTypedArgs(args, forArgMode(fun, mode)) match {
+              tryTypedArgs(args map (resetLocalAttrs(_)), forArgMode(fun, mode)) match {
                 case Some(args1) =>
                   val qual1 =
                     if (!pt.isError) adaptToArguments(qual, name, args1, pt, true, true)
