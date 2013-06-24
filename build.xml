@@ -472,7 +472,7 @@ TODO:
       There must be a variable of the shape @{stage}.@{project}.build.path
       for all @{stage} in locker, quick, strap
       and all @{project} in library, reflect, compiler
-        when stage is quick, @{project} also includes: actors, repl, xml, swing, plugins, scalacheck, interactive, scaladoc, partest, scalap
+        when stage is quick, @{project} also includes: actors, parser-combinators, xml, repl, swing, plugins, scalacheck, interactive, scaladoc, partest, scalap
     -->
 
     <!-- LOCKER -->
@@ -508,6 +508,11 @@ TODO:
     <path id="quick.actors.build.path">
       <path refid="quick.library.build.path"/>
       <pathelement location="${build-quick.dir}/classes/actors"/>
+    </path>
+
+    <path id="quick.parser-combinators.build.path">
+      <path refid="quick.library.build.path"/>
+      <pathelement location="${build-quick.dir}/classes/parser-combinators"/>
     </path>
 
     <path id="quick.reflect.build.path">
@@ -546,6 +551,7 @@ TODO:
     <path id="quick.scalacheck.build.path">
       <pathelement location="${build-quick.dir}/classes/library"/>
       <pathelement location="${build-quick.dir}/classes/actors"/>
+      <pathelement location="${build-quick.dir}/classes/parser-combinators"/>
       <pathelement location="${build-quick.dir}/classes/scalacheck"/>
       <path refid="partest.extras.classpath"/>
     </path>
@@ -567,6 +573,7 @@ TODO:
     <path id="quick.scaladoc.build.path">
       <path refid="quick.xml.build.path"/>
       <path refid="quick.compiler.build.path"/>
+      <path refid="quick.parser-combinators.build.path"/>
       <pathelement location="${build-quick.dir}/classes/partest"/>
       <pathelement location="${build-quick.dir}/classes/scaladoc"/>
     </path>
@@ -578,6 +585,7 @@ TODO:
     </path>
 
     <path id="quick.bin.tool.path">
+      <path refid="quick.parser-combinators.build.path"/>
       <path refid="quick.xml.build.path"/>
       <path refid="quick.repl.build.path"/>
       <path refid="quick.actors.build.path"/>
@@ -600,6 +608,8 @@ TODO:
 
     <path id="pack.bin.tool.path">
       <pathelement location="${build-pack.dir}/lib/scala-library.jar"/>
+      <pathelement location="${build-pack.dir}/lib/scala-actors.jar"/>
+      <pathelement location="${build-pack.dir}/lib/scala-parser-combinators.jar"/>
       <pathelement location="${build-pack.dir}/lib/scala-xml.jar"/>
       <pathelement location="${build-pack.dir}/lib/scala-reflect.jar"/>
       <pathelement location="${build-pack.dir}/lib/scala-compiler.jar"/>
@@ -626,7 +636,8 @@ TODO:
       <fileset dir="${asm-classes}"/>
     </path>
 
-    <path id="pack.xml.files"> <fileset dir="${build-quick.dir}/classes/xml"/> </path>
+    <path id="pack.parser-combinators.files">    <fileset dir="${build-quick.dir}/classes/parser-combinators"/> </path>
+    <path id="pack.xml.files">        <fileset dir="${build-quick.dir}/classes/xml"/> </path>
     <path id="pack.swing.files">      <fileset dir="${build-quick.dir}/classes/swing"/> </path>
     <path id="pack.reflect.files">    <fileset dir="${build-quick.dir}/classes/reflect"/> </path>
     <path id="pack.plugins.files">    <fileset dir="${build-quick.dir}/classes/continuations-plugin"/> </path>
@@ -667,6 +678,7 @@ TODO:
     <!-- MISC -->
     <path id="docs.compiler.path">
       <pathelement location="${build-pack.dir}/lib/scala-library.jar"/>
+      <pathelement location="${build-pack.dir}/lib/scala-parser-combinators.jar"/>
       <pathelement location="${build-pack.dir}/lib/scala-xml.jar"/>
       <pathelement location="${build-pack.dir}/lib/scala-reflect.jar"/>
       <pathelement location="${build-pack.dir}/lib/scala-compiler.jar"/>
@@ -693,6 +705,7 @@ TODO:
 
     <path id="partest.classpath">
       <path refid="pack.compiler.path"/>
+      <pathelement location="${build-pack.dir}/lib/scala-parser-combinators.jar"/>
       <pathelement location="${build-pack.dir}/lib/scala-xml.jar"/>
       <path refid="partest.extras.classpath"/>
     </path>
@@ -719,6 +732,7 @@ TODO:
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-reflect.jar"/>
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-compiler.jar"/>
       <pathelement location="${build-osgi.dir}/org.scala-lang.scala-actors.jar"/>
+      <pathelement location="${build-osgi.dir}/org.scala-lang.scala-parser-combinators.jar"/>
       <path refid="pax.exam.classpath"/>
       <path refid="forkjoin.classpath"/>
     </path>
@@ -1163,6 +1177,9 @@ TODO:
   <target name="quick.actors"     depends="quick.lib">
     <staged-build with="locker"   stage="quick" project="actors"/> </target>
 
+  <target name="quick.parser-combinators"    depends="quick.lib">
+    <staged-build with="locker"   stage="quick" project="parser-combinators"/> </target>
+
   <target name="quick.reflect"    depends="quick.lib">
     <staged-build with="locker"   stage="quick" project="reflect"/> </target>
 
@@ -1172,7 +1189,7 @@ TODO:
   <target name="quick.repl"       depends="quick.comp">
     <staged-build with="locker"   stage="quick" project="repl"/> </target>
 
-  <target name="quick.scalacheck" depends="quick.actors, quick.lib">
+  <target name="quick.scalacheck" depends="quick.actors, quick.parser-combinators, quick.lib">
     <staged-build with="locker"   stage="quick" project="scalacheck" args="-nowarn"/> </target>
 
   <target name="quick.scalap"     depends="quick.repl">
@@ -1181,7 +1198,7 @@ TODO:
   <target name="quick.partest"    depends="quick.scalap, quick.xml, quick.repl, asm.done">
     <staged-build with="locker"   stage="quick" project="partest" version="partest"/> </target>
 
-  <target name="quick.scaladoc"   depends="quick.comp, quick.partest">
+  <target name="quick.scaladoc"   depends="quick.comp, quick.partest, quick.parser-combinators">
     <staged-build with="locker"   stage="quick" project="scaladoc" version="scaladoc"/> </target>
 
   <target name="quick.interactive" depends="quick.comp, quick.scaladoc">
@@ -1226,7 +1243,7 @@ TODO:
     </staged-uptodate>
   </target>
 
-  <target name="quick.bin" depends="quick.lib, quick.reflect, quick.comp, quick.repl, quick.scalacheck, quick.scalap, quick.interactive, quick.xml, quick.swing, quick.plugins, quick.partest, quick.scaladoc">
+  <target name="quick.bin" depends="quick.lib, quick.reflect, quick.comp, quick.repl, quick.scalacheck, quick.scalap, quick.interactive, quick.xml, quick.parser-combinators, quick.swing, quick.plugins, quick.partest, quick.scaladoc">
     <staged-bin stage="quick" classpathref="quick.bin.tool.path"/>
   </target>
 
@@ -1241,7 +1258,8 @@ TODO:
     <staged-pack project="library"/></target>
 
   <target name="pack.actors"  depends="quick.lib">                <staged-pack project="actors"/> </target>
-  <target name="pack.xml" depends="quick.xml">    <staged-pack project="xml"/> </target>
+  <target name="pack.xml"     depends="quick.xml">                <staged-pack project="xml"/> </target>
+  <target name="pack.parser-combinators" depends="quick.parser-combinators"> <staged-pack project="parser-combinators"/> </target>
   <target name="pack.swing" if="has.java6" depends="quick.swing"> <staged-pack project="swing"/> </target>
   <target name="pack.reflect" depends="quick.reflect">            <staged-pack project="reflect"/> </target>
 
@@ -1278,7 +1296,7 @@ TODO:
 
   <target name="pack.scalap"     depends="quick.scalap">     <staged-pack project="scalap"     targetjar="scalap.jar"/> </target>
 
-  <target name="pack.bin" depends="pack.comp, pack.lib, pack.actors, pack.partest, pack.plugins, pack.reflect, pack.scalacheck, pack.scalap, pack.xml,pack.swing">
+  <target name="pack.bin" depends="pack.comp, pack.lib, pack.actors, pack.partest, pack.plugins, pack.reflect, pack.scalacheck, pack.scalap, pack.xml, pack.swing, pack.parser-combinators">
     <staged-bin stage="pack"/>
   </target>
 
@@ -1382,6 +1400,7 @@ TODO:
       <stopwatch name="osgi.bundle.timer"/>
       <make-bundle name="scala-library" version="${osgi.version.number}" />
       <make-bundle name="scala-actors" version="${osgi.version.number}" />
+      <make-bundle name="scala-parser-combinators" version="${osgi.version.number}" />
       <make-bundle name="scala-reflect" version="${osgi.version.number}" />
       <make-bundle name="scala-compiler" version="${osgi.version.number}" />
       <make-plugin-bundle name="continuations" version="${osgi.version.number}" />
@@ -1657,6 +1676,7 @@ TODO:
         <include name="xml/**"/>
         <include name="swing/**"/>
         <include name="actors/**"/>
+        <include name="parser-combinators/**"/>
         <include name="reflect/**"/>
         <include name="continuations/library/**"/>
       </srcfiles></check>
@@ -1683,6 +1703,7 @@ TODO:
           skipPackages="scala.reflect.macros.internal:scala.reflect.internal:scala.reflect.io:scala.concurrent.impl">
           <src>
             <files includes="${src.dir}/actors"/>
+            <files includes="${src.dir}/parser-combinators"/>
             <files includes="${src.dir}/library"/>
             <files includes="${src.dir}/reflect"/>
             <files includes="${src.dir}/xml"/>
@@ -1821,6 +1842,7 @@ TODO:
     <copy-bundle name="scala-xml"/>
     <copy-bundle name="scala-swing"/>
     <copy-bundle name="scala-actors"/>
+    <copy-bundle name="scala-parser-combinators"/>
     <copy-bundle name="scala-compiler"/>
     <copy toDir="${dist.dir}/bin">
       <fileset dir="${build-pack.dir}/bin"/>
@@ -1880,6 +1902,7 @@ TODO:
     <jar whenmanifestonly="fail" destfile="${dist.dir}/src/scala-xml-src.jar" basedir="${src.dir}/xml"/>
     <jar whenmanifestonly="fail" destfile="${dist.dir}/src/scala-swing-src.jar"    basedir="${src.dir}/swing"/>
     <jar whenmanifestonly="fail" destfile="${dist.dir}/src/scala-reflect-src.jar"  basedir="${src.dir}/reflect"/>
+    <jar whenmanifestonly="fail" destfile="${dist.dir}/src/scala-parser-combinators-src.jar"  basedir="${src.dir}/parser-combinators"/>
     <jar whenmanifestonly="fail" destfile="${dist.dir}/src/scalap-src.jar"         basedir="${src.dir}/scalap"/>
     <jar whenmanifestonly="fail" destfile="${dist.dir}/src/scala-partest-src.jar"  basedir="${src.dir}/partest"/>
   </target>
@@ -1931,6 +1954,7 @@ TODO:
       <fileset dir="${src.dir}/xml"/>
       <fileset dir="${src.dir}/swing"/>
       <fileset dir="${src.dir}/actors"/>
+      <fileset dir="${src.dir}/parser-combinators"/>
       <fileset dir="${src.dir}/forkjoin"/>
     </jar>
     <jar whenmanifestonly="fail" destfile="${lib.dir}/scala-reflect-src.jar" basedir="${src.dir}/reflect"/>
