@@ -151,7 +151,6 @@ MAIN DISTRIBUTION PACKAGING
         </copy>
       </sequential>
     </macrodef>
-    <mvn-copy-lib mvn.artifact.name="jline"/>
     <mvn-copy-lib mvn.artifact.name="scala-library"/>
     <mvn-copy-lib mvn.artifact.name="scala-reflect"/>
     <mvn-copy-lib mvn.artifact.name="scala-compiler"/>
@@ -181,12 +180,6 @@ MAIN DISTRIBUTION PACKAGING
 
   <target name="pack-maven.srcs" depends="pack-maven.libs">
     <!-- Add missing src jars. -->
-    <jar whenmanifestonly="fail" destfile="${dists.dir}/maven/${version.number}/jline/jline-src.jar"
-         basedir="${src.dir}/jline/src/main/java">
-      <include name="**/*"/>
-    </jar>
-
-
     <!-- Continuations plugin -->
     <jar whenmanifestonly="fail" destfile="${dists.dir}/maven/${version.number}/plugins/continuations/continuations-src.jar"
          basedir="${src.dir}/continuations/plugin">
@@ -195,10 +188,6 @@ MAIN DISTRIBUTION PACKAGING
   </target>
 
   <target name="pack-maven.docs" depends="pack-maven.libs, pack-maven.plugins">
-    <jar whenmanifestonly="fail" destfile="${dists.dir}/maven/${version.number}/jline/jline-docs.jar"
-         basedir="${build-docs.dir}/jline">
-      <include name="**/*"/>
-    </jar>
     <jar whenmanifestonly="fail" destfile="${dists.dir}/maven/${version.number}/scala-library/scala-library-docs.jar"
          basedir="${build-docs.dir}/library">
       <include name="**/*"/>

@@ -116,7 +116,6 @@
         <deploy-local name="scala-swing" version="@{version}" repository="@{repository}"/>
         <deploy-local name="scalap" version="@{version}" repository="@{repository}"/>
         <deploy-local name="scala-partest" version="@{version}" repository="@{repository}"/>
-        <deploy-local name="jline" version="@{version}" repository="@{repository}"/>
       </sequential>
     </macrodef>
   </target>
@@ -165,7 +164,6 @@
       <attribute name="version" />
       <sequential>
         <deploy-remote name="scala-library" version="@{version}" repository="@{repository}"/>
-        <deploy-remote name="jline" version="@{version}" repository="@{repository}"/>
         <deploy-remote name="scala-reflect" version="@{version}" repository="@{repository}"/>
         <deploy-remote name="scala-compiler" version="@{version}" repository="@{repository}" />
         <deploy-remote name="scala-swing" version="@{version}" repository="@{repository}"/>
@@ -233,7 +231,6 @@
       <sequential>
         <deploy-remote-plugin-signed name="continuations" version="@{version}" repository="@{repository}"/> 
         <deploy-remote-signed name="scala-library" version="@{version}" repository="@{repository}"/>
-        <deploy-remote-signed name="jline" version="@{version}" repository="@{repository}"/>
         <deploy-remote-signed name="scala-reflect" version="@{version}" repository="@{repository}"/>
         <deploy-remote-signed name="scala-compiler" version="@{version}" repository="@{repository}" />
         <deploy-remote-signed name="scala-swing" version="@{version}" repository="@{repository}"/>
