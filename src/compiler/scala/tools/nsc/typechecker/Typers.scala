@@ -2590,7 +2590,7 @@ trait Typers extends Adaptations with Tags {
       assert(pt.typeSymbol == PartialFunctionClass, s"PartialFunction synthesis for match in $tree requires PartialFunction expected type, but got $pt.")
       val targs = pt.dealiasWiden.typeArgs
 
-      // if targs.head isn't fully defined, we can translate --> error
+      // if targs.head isn't fully defined, we can't translate --> error
       targs match {
         case argTp :: _ if isFullyDefined(argTp) => // ok
         case _ => // uh-oh
