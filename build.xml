@@ -153,7 +153,6 @@ TODO:
   <property name="partest.version.number"  value="0.9.3"/>
 
   <property name="jline.version"           value="2.11"/>
-  <property name="jansi.version"           value="1.11"/> <!-- must be in synch with jline version! TODO: can't we just let maven resolve this one? -->
 
   <!-- These are NOT the flags used to run SuperSabbus, but the ones written
        into the script runners created with scala.tools.ant.ScalaTool -->
@@ -242,7 +241,6 @@ TODO:
 
       <artifact:dependencies pathId="repl.deps.classpath" filesetId="repl.deps.fileset" versionsId="repl.deps.versions">
         <dependency groupId="jline" artifactId="jline" version="${jline.version}"/>
-        <dependency groupId="org.fusesource.jansi" artifactId="jansi" version="${jansi.version}"/>
       </artifact:dependencies>
 
       <!-- BND support -->
