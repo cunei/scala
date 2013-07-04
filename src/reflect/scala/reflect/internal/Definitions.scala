@@ -689,19 +689,24 @@ trait Definitions extends api.StandardDefinitions {
     }
 
     /* The single abstract method of type `tp` or NoSymbol.
+     * The class of `tp` must have a public no-arg primary constructor.
      * The method must be monomorphic and have exactly one parameter list.
      */
     def samOf(tp: Type): Symbol = {
-      // must filter out Any's members (getClass is deferred for some reason)
-      val deferredMembers = (
-        tp membersBasedOnFlags (excludedFlags = BridgeAndPrivateFlags, requiredFlags = METHOD | DEFERRED)
-        filterNot (_.owner == AnyClass))
+      val ctor = tp.typeSymbol.primaryConstructor
+      // if it has a constructor, must be public and must not take any arguments (not even implicitly)
+      if (ctor == NoSymbol || (!ctor.isOverloaded && ctor.isPublic && ctor.info.params.isEmpty && ctor.info.paramSectionCount <= 1)) {
+        // must filter out Any's members (getClass is deferred for some reason)
+        val deferredMembers = (
+          tp membersBasedOnFlags (excludedFlags = BridgeAndPrivateFlags, requiredFlags = METHOD | DEFERRED)
+          filterNot (_.owner == AnyClass))
 
-      if (deferredMembers.size == 1 &&
-          deferredMembers.head.typeParams.isEmpty &&
-          deferredMembers.head.info.paramSectionCount == 1)
-        deferredMembers.head
-      else NoSymbol
+        if (deferredMembers.size == 1 &&
+            deferredMembers.head.typeParams.isEmpty &&
+            deferredMembers.head.info.paramSectionCount == 1)
+          deferredMembers.head
+        else NoSymbol
+      } else NoSymbol
     }
 
     def arrayType(arg: Type)         = appliedType(ArrayClass, arg)
