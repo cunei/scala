@@ -2934,7 +2934,7 @@ trait Typers extends Adaptations with Tags {
       object SAMType {
         def unapply(tp: Type): Option[(Symbol, List[Type], Type)] =
           // don't give FunctionN the SAM treatment (yet)
-          if (tp.typeSymbol != FunctionSymbol) {
+          if (!(tp.isWildcard || tp.isError) && tp.typeSymbol != FunctionSymbol) {
             val sam = samOf(tp)
 
             if (sam != NoSymbol && sameLength(sam.info.params, fun.vparams)) {
