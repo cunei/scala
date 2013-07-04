@@ -2811,70 +2811,102 @@ trait Typers extends Adaptations with Tags {
      *       - could we use a type variable for the result type and backpatch it?
      *    - occurrences of `this` in `cases` or `sel` must resolve to the this of the class originally enclosing the function,
      *      not of the anonymous partial function subclass
-     *
-     * an alternative TODO: add partial function AST node or equivalent and get rid of this synthesis --> do everything in uncurry (or later)
      */
     def synthesizeSAMFunction(sam: Symbol, fun: Function, resPt: Type, samClassTp: Type, mode: Mode): Tree = {
       // assert(fun.vparams forall (vp => isFullyDefined(vp.tpt.tpe))) -- by construction, as we take them from sam's info
       val pos = fun.pos
 
-      val anonClass = (context.owner
-        newAnonymousFunctionClass pos
-        addAnnotation AnnotationInfo(SerialVersionUIDAttr.tpe, List(Literal(Constant(0))), List()))
+      val serializableParentAddendum =
+        if (typeIsSubTypeOfSerializable(samClassTp)) Nil
+        else List(SerializableTpe)
 
-      anonClass setInfo ClassInfoType(addSerializable(samClassTp), newScope, anonClass)
+      val parentTps = samClassTp :: serializableParentAddendum
 
-      val methodSym = anonClass.newMethod(sam.name.toTermName, fun.pos, FINAL | OVERRIDE)
-      val paramSyms = fun.vparams map { vp =>
-        methodSym.newValueParameter(vp.name, vp.pos.focus, SYNTHETIC) setInfo vp.tpt.tpe
-      }
-      methodSym setInfo MethodType(paramSyms, AnyTpe)
+      // if the expected sam type is fully defined, use it for the method's result type
+      // otherwise, NoType, so that type inference will determine the method's result type
+      // resPt is syntactically contained in samClassTp, so if the latter is fully defined, so is the former
+      // ultimately, we want to fully define samClassTp
+      val samDefTpt = if (isFullyDefined(samClassTp)) resPt else NoType
 
-      anonClass.info.decls enter methodSym
+      // `final override def ${sam.name}($p1: $T1, ..., $pN: $TN): $resPt = $body`
+      val samDef =
+        DefDef(Modifiers(FINAL | OVERRIDE),
+          sam.name.toTermName,
+          Nil,
+          List(fun.vparams),
+          TypeTree(samDefTpt) setPos pos.focus,
+          fun.body)
 
-      // `def ${sam.name}($p1: $T1, ..., $pN: $TN): $resTp = $body`
-      val methodBodyTyper = newTyper(context.makeNewScope(context.tree, methodSym))
+      val parents  = parentTps map TypeTree
+      val templ    = Template(parents, emptyValDef, NoMods, ListOfNil, List(samDef), pos.focus)
 
-      // should use the DefDef for the context's tree, but it doesn't exist yet (we need the typer we're creating to create it)
-      paramSyms foreach (methodBodyTyper.context.scope enter _)
-
-      val typedBody = methodBodyTyper.typed(fun.body, mode, resPt)
-      // the actual type
-      val bodyTp    = typedBody.tpe
-
-      methodSym setInfo MethodType(paramSyms, bodyTp) // patch info
-
+      // Need to type method before classdef to fully determine samClassTp.
+      // As it determines a parent type for the class, we don't want to type check `block` (see below)
+      // all at once (which would be ideal otherwise).
+      // That would propagate the wildcard to the class's self type, parent types,...
+      // Thus, we set up a minimal dummy context and ask for the method's final result type
       val samClassTpFullyDefined =
-        if (isFullyDefined(samClassTp)) samClassTp
+        if (samDefTpt ne NoType) samClassTp
         else {
-          val samSym    = samClassTp.typeSymbol
-          // the declared type
-          val samResTp  = sam.info.resultType
-          // the unknowns
-          val tparams   = samSym.typeParams
-          // ... as typevars
-          val tvars     = tparams map freshVar
+          // temporary symbol to set up a minimal context for typing the DefDef for the sam so we can determine the result type
+          val anonClass = context.owner newAnonymousFunctionClass pos
+          anonClass setInfo ClassInfoType(parentTps, newScope, anonClass)
 
-          // TODO: this doesn't consider implicit args on the constructor...
-          samClassTp =:= appliedType(samSym.typeConstructor, tvars)
-          bodyTp     <:< samResTp.substituteTypes(tparams, tvars)
+          // this creates a symbol for samDef with a type completer
+          // and enters the symbol in the temporary scope (anonClass.info.decls)
+          enterSym(context.make(templ, anonClass, anonClass.info.decls), samDef)
 
-          val targs = solvedTypes(tvars, tparams, tparams map varianceInType(samResTp), upper = false, lubDepth(samResTp :: bodyTp :: Nil))
-          appliedType(samSym.typeConstructor, targs)
+          // so, what's the actual type? (this will run the type completer)
+          val bodyTp = samDef.symbol.info.finalResultType
+
+          // infer samClassTp's type args based on bodyTp
+          // TODO: this doesn't consider implicit args on `samClass.primaryConstructor`...
+          val fullyDefined = {
+            val samClass  = samClassTp.typeSymbol
+            // the unknowns
+            val tparams   = samClass.typeParams
+            // ... as typevars
+            val tvars     = tparams map freshVar
+
+            // we're trying to fully define the type arguments for this type constructor
+            val samTyCon  = samClass.typeConstructor
+
+            // the declared type, which refers to the (potentially) unknown type params
+            // so that we can infer them by comparing it to body's the actual type
+            val samResTp  = sam.info.resultType
+
+            // first, we compare to the samClassTp, to propagate any already determined type parameters
+            samClassTp =:= appliedType(samTyCon, tvars)
+            // now, make sure the body's actual type conforms to the expected type
+            // as specified by the method's return type (in terms of the typevars that represent the sam's class's type params)
+            bodyTp     <:< samResTp.substituteTypes(tparams, tvars)
+
+            val targs = solvedTypes(tvars, tparams, tparams map varianceInType(samResTp), upper = false, lubDepth(samResTp :: bodyTp :: Nil))
+
+            appliedType(samTyCon, targs)
+          }
+
+          parents.head setType fullyDefined
+          fullyDefined
         }
 
-      val samDef   = DefDef(methodSym, typedBody)
-      val classDef = ClassDef(Modifiers(FINAL), tpnme.ANON_FUN_NAME, Nil,
-          Template(addSerializable(samClassTpFullyDefined) map TypeTree, emptyValDef, NoMods, ListOfNil, List(samDef), pos.focus))
+      val classDef = ClassDef(Modifiers(FINAL), tpnme.ANON_FUN_NAME, Nil, templ)
+      val block =
+        typedPos(pos, mode, samClassTpFullyDefined) {
+          Block(classDef, Apply(Select(New(Ident(tpnme.ANON_FUN_NAME)), nme.CONSTRUCTOR), Nil))
+        }
 
-      // TODO: encapsulate creating this tree shape
-      val tree = typedPos(pos, mode, samClassTp) {
-        Block(classDef, atPos(pos.focus)(Apply(Select(New(Ident(anonClass.name)), nme.CONSTRUCTOR), Nil)))
+      // fix up owner structure
+      if (samDefTpt eq NoType) {
+        // the anonClass owner was only temporary, we just wanted to figure out the type of samDef's body
+        samDef.symbol.owner = classDef.symbol
+
+        // samDef already had a symbol when typing `block` above, so namer.enterSym didn't enter it when typing `templ`
+        classDef.symbol.info.decls enter samDef.symbol
       }
-      samDef.symbol.owner = classDef.symbol
-      classDef.symbol.info.decls enter samDef.symbol
 
-      tree
+      classDef.symbol addAnnotation AnnotationInfo(SerialVersionUIDAttr.tpe, List(Literal(Constant(0))), List())
+      block
     }
 
 
@@ -2991,7 +3023,7 @@ trait Typers extends Adaptations with Tags {
             val outerTyper = newTyper(context.outer)
             outerTyper.synthesizeSAMFunction(funSym, fun, respt, pt, mode)
 
-          // regular Functio
+          // regular Function
           case _ =>
             val vparamSyms = fun.vparams map { vparam =>
               enterSym(context, vparam)
