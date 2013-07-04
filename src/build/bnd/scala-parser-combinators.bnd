@@ -3,4 +3,3 @@ Bundle-SymbolicName: org.scala-lang.scala-parser-combinators
 ver: @VERSION@
 Bundle-Version: ${ver}
 Export-Package: *;version=${ver}
-Import-Package: sun.misc;resolution:=optional, *
