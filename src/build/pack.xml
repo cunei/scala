@@ -194,6 +194,14 @@ MAIN DISTRIBUTION PACKAGING
          basedir="${build-docs.dir}/library">
       <include name="**/*"/>
     </jar>
+    <jar whenmanifestonly="fail" destfile="${dists.dir}/maven/${version.number}/scala-xml/scala-xml-docs.jar"
+         basedir="${build-docs.dir}/xml">
+      <include name="**/*"/>
+    </jar>
+    <jar whenmanifestonly="fail" destfile="${dists.dir}/maven/${version.number}/scala-parser-combinators/scala-parser-combinators-docs.jar"
+         basedir="${build-docs.dir}/parser-combinators">
+      <include name="**/*"/>
+    </jar>
     <jar whenmanifestonly="fail" destfile="${dists.dir}/maven/${version.number}/scala-compiler/scala-compiler-docs.jar"
          basedir="${build-docs.dir}/compiler">
       <include name="**/*"/>

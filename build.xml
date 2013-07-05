@@ -1683,10 +1683,8 @@ TODO:
     <staged-uptodate stage="docs" project="library">
       <check><srcfiles dir="${src.dir}">
         <include name="library/**"/>
-        <include name="xml/**"/>
         <include name="swing/**"/>
         <include name="actors/**"/>
-        <include name="parser-combinators/**"/>
         <include name="reflect/**"/>
         <include name="continuations/library/**"/>
       </srcfiles></check>
@@ -1713,10 +1711,8 @@ TODO:
           skipPackages="scala.reflect.macros.internal:scala.reflect.internal:scala.reflect.io:scala.concurrent.impl">
           <src>
             <files includes="${src.dir}/actors"/>
-            <files includes="${src.dir}/parser-combinators"/>
             <files includes="${src.dir}/library"/>
             <files includes="${src.dir}/reflect"/>
-            <files includes="${src.dir}/xml"/>
             <files includes="${src.dir}/swing"/>
             <files includes="${src.dir}/continuations/library"/>
           </src>
@@ -1733,6 +1729,18 @@ TODO:
         <stopwatch name="docs.lib.timer" action="total"/>
       </do>
     </staged-uptodate>
+  </target>
+
+  <target name="docs.xml" depends="docs.start">
+    <staged-docs project="xml" title="Scala XML Library" docroot="rootdoc.txt">
+      <include name="**/*.scala"/>
+    </staged-docs>
+  </target>
+
+  <target name="docs.parser-combinators" depends="docs.start">
+    <staged-docs project="parser-combinators" title="Scala Parser Combinator Library" docroot="rootdoc.txt">
+      <include name="**/*.scala"/>
+    </staged-docs>
   </target>
 
   <target name="docs.comp" depends="docs.start">
@@ -1796,7 +1804,7 @@ TODO:
     </staged-uptodate>
   </target>
 
-  <target name="docs.done" depends="docs.comp, docs.man, docs.lib, docs.scalap, docs.partest, docs.continuations-plugin"/>
+  <target name="docs.done" depends="docs.comp, docs.man, docs.lib, docs.xml, docs.parser-combinators, docs.scalap, docs.partest, docs.continuations-plugin"/>
 
 
 <!-- ===========================================================================
