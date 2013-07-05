@@ -154,7 +154,7 @@
             "artifacts": [
                 {
                     "extension": "jar",
-                    "name": "partest",
+                    "name": "scala-partest",
                     "organization": "org.scala-lang"
                 }
             ],
@@ -180,7 +180,7 @@
                     "organization": "org.scala-lang"
                 }
             ],
-            "name": "partest",
+            "name": "scala-partest",
             "organization": "org.scala-lang"
         },
         {
@@ -199,7 +199,7 @@
                 },
                 {
                     "extension": "jar",
-                    "name": "partest",
+                    "name": "scala-partest",
                     "organization": "org.scala-lang"
                 },
                 {

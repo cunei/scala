@@ -44,14 +44,14 @@ val meta =
       Seq(ProjectRef("scalacheck", "org.scala-lang")),
       Seq(ProjectRef("scala-library", "org.scala-lang"), ProjectRef("scala-actors", "org.scala-lang"), ProjectRef("scala-parser-combinators", "org.scala-lang"))),
 
-    Project("partest", "org.scala-lang",
-      Seq(ProjectRef("partest", "org.scala-lang")),
+    Project("scala-partest", "org.scala-lang",
+      Seq(ProjectRef("scala-partest", "org.scala-lang")),
       Seq(ProjectRef("scala-compiler", "org.scala-lang"), // TODO: refine to scala-repl
           ProjectRef("scalap", "org.scala-lang"), ProjectRef("scala-xml", "org.scala-lang"), ProjectRef("scalacheck", "org.scala-lang"))),
 
     Project("scaladoc", "org.scala-lang",
       Seq(ProjectRef("scaladoc", "org.scala-lang")),
-      Seq(ProjectRef("scala-compiler", "org.scala-lang"),ProjectRef("partest", "org.scala-lang"), ProjectRef("scala-xml", "org.scala-lang"), ProjectRef("scala-parser-combinators", "org.scala-lang"))),
+      Seq(ProjectRef("scala-compiler", "org.scala-lang"),ProjectRef("scala-partest", "org.scala-lang"), ProjectRef("scala-xml", "org.scala-lang"), ProjectRef("scala-parser-combinators", "org.scala-lang"))),
 
     Project("scalap", "org.scala-lang",
       Seq(ProjectRef("scalap", "org.scala-lang")),
