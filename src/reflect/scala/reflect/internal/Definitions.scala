@@ -699,7 +699,9 @@ trait Definitions extends api.StandardDefinitions {
         // must filter out Any's members (getClass is deferred for some reason)
         val deferredMembers = (
           tp membersBasedOnFlags (excludedFlags = BridgeAndPrivateFlags, requiredFlags = METHOD | DEFERRED)
-          filterNot (_.owner == AnyClass))
+          filterNot isUniversalMember)
+
+        // TODO: make sure there's no concrete overriding member
 
         if (deferredMembers.size == 1 &&
             deferredMembers.head.typeParams.isEmpty &&
