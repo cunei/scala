@@ -660,7 +660,7 @@ class Template(universe: doc.Universe, generator: DiagramGenerator, tpl: DocTemp
           <div class="toggleContainer block">
             <span class="toggle">Known Subclasses</span>
             <div class="subClasses hiddenContent">{
-              templatesToHtml(subs.toList.sortBy(_.name), scala.xml.Text(", "))
+              templatesToHtml(subs.toList.sortBy(_.qualifiedName.split("\\.").reverse.mkString(".")), scala.xml.Text(", "))
             }</div>
           </div>
         else NodeSeq.Empty
